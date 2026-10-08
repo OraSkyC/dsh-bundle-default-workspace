@@ -5,6 +5,9 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+> 说明：本仓库的 git 历史从 `0.1.2` 开始发布。`0.1.0` 与 `0.1.1` 两条记录是发布前的开发过程，
+> 对应的 git tag 不存在，因此不加版本比较链接。
+
 ## [未发布]
 
 ## [0.1.2] - 2026-10-08
@@ -15,7 +18,7 @@
   `data && openSections.x ? <SectionCard/> : null`，收起时把整张卡片（连同标题按钮）
   一起移出渲染树，用户再也点不回来；同时 `open` prop 被写死为 `true`，
   `SectionCard` 自身的折叠逻辑根本没被用上。现在卡片只以 `data` 为渲染条件，
-  展开态通过 `open` prop 下发。（[#1]）
+  展开态通过 `open` prop 下发。
 
 ### 新增
 
@@ -48,7 +51,6 @@
   `registerRoutes` 第一行求值 `ctx.webServer` 时即抛错，`?? fallback` 没有机会执行，
   整个 `apply()` 失败，路由一条都没注册。
   现在 `inject = ["webServer"]`，并给该访问加了一层 `try` 兜底。
-  （[#1]）
 
 ### 新增
 
@@ -67,9 +69,3 @@
 - 浏览器半侧：设置卡（四个可折叠区块、逐字段保存与恢复默认、「确保工作区」按钮），
   中英双语字典。
 - 图标、双语 locale 元数据、`cordis.patch.yml` 部署默认值。
-
-[未发布]: https://github.com/OraSkyC/dsh-bundle-default-workspace/compare/v0.1.2...HEAD
-[0.1.2]: https://github.com/OraSkyC/dsh-bundle-default-workspace/compare/v0.1.1...v0.1.2
-[0.1.1]: https://github.com/OraSkyC/dsh-bundle-default-workspace/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/OraSkyC/dsh-bundle-default-workspace/releases/tag/v0.1.0
-[#1]: https://github.com/OraSkyC/dsh-bundle-default-workspace/issues/1
