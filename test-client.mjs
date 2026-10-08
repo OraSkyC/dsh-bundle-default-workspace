@@ -244,32 +244,108 @@ console.log("\n[C] 组件渲染");
 	assert.match(JSON.stringify(rest), /V2/);
 	ok("StatusRow 渲染标签与取值");
 
-	// Field：文本输入 + 保存按钮 + 空值可恢复默认
+	// Field：左列标签 + 右列控件。这里曾经整个漏掉了标签渲染，
+	// 界面上只剩「一个孤零零的输入框 + 一串说明」，所以标签必须显式断言。
 	const fieldReact = freshReact();
 	fieldReact.begin();
 	const field = Field({
-		name: "title", label: "标题", value: "已生效", kind: "text",
+		name: "title", label: "字段标题", hint: "这是说明", value: "已生效", kind: "text",
 		disabled: false, emptyMeansDefault: true, tt: (k) => k
 	});
 	const fieldJson = JSON.stringify(field);
 	assert.match(fieldJson, /已生效/);
 	assert.match(fieldJson, /action\.save/);
 	assert.match(fieldJson, /action\.reset/);
-	assert.equal(field.children[0].props.value, "已生效");
-	fieldReact.teardown();
-	ok("Field 渲染当前值与保存/恢复按钮");
 
-	// BoolField：开关 + 标签
-	const boolReact = freshReact();
-	boolReact.begin();
-	const bool = BoolField({
-		name: "enabled", label: "启用", value: true, disabled: false, tt: (k) => k
-	});
-	const boolJson = JSON.stringify(bool);
-	assert.match(boolJson, /启用/);
-	assert.match(boolJson, /"aria-checked":true/);
-	boolReact.teardown();
-	ok("BoolField 渲染开关状态");
+	const labelCol = field.children[0];
+	const controlCol = field.children[1];
+	assert.match(JSON.stringify(labelCol), /字段标题/, "Field 必须渲染可见标签");
+	assert.match(JSON.stringify(labelCol), /这是说明/, "Field 必须把 hint 放在标签列");
+	assert.equal(controlCol.children[0].type, "input", "控件应在右列");
+	assert.equal(controlCol.children[0].props.value, "已生效");
+	// 标签不能只存在于 aria-label 里
+	assert.ok(
+		!JSON.stringify(labelCol).includes("aria-label"),
+		"标签必须是可见文本，不能只靠 aria-label"
+	);
+	fieldReact.teardown();
+	ok("Field 渲染可见标签 + 说明 + 当前值 + 保存/恢复按钮");
+
+	// textarea 变体
+	const taReact = freshReact();
+	taReact.begin();
+	const area = Field({ name: "n", label: "L", value: "多行", kind: "textarea", tt: (k) => k });
+	assert.equal(area.children[1].children[0].type, "textarea");
+	taReact.teardown();
+	ok("Field textarea 变体");
+
+	// BoolField：标签可见 + 开关状态双向都渲染
+	for (const on of [true, false]) {
+		const boolReact = freshReact();
+		boolReact.begin();
+		const bool = BoolField({
+			name: "enabled", label: "启用插件", hint: "说明文字", value: on, disabled: false, tt: (k) => k
+		});
+		const json = JSON.stringify(bool);
+		assert.match(json, /启用插件/, "BoolField 必须渲染可见标签");
+		assert.match(json, /说明文字/, "BoolField 必须渲染 hint");
+		assert.equal(bool.children[0].type, "div", "标签列");
+		assert.match(
+			JSON.stringify(bool.children[0]),
+			/启用插件/,
+			`value=${on} 时标签列必须含标签文本`
+		);
+		boolReact.teardown();
+	}
+	ok("BoolField 渲染可见标签 + 说明（开/关两态）");
+
+	// 开关轨道在两种状态下都必须有背景色。
+	// 这是那个「开关永远像空胶囊」bug 的直接回归：当时写成
+	// var(--dsw-alias-bg-brand, var(--dsw-alias-state-success))，两个变量都不存在，
+	// 整条 background 声明被判非法 → 轨道没有背景。
+	{
+		const boolReact = freshReact();
+		boolReact.begin();
+		const onSwitch = BoolField({ name: "n", label: "L", value: true, tt: (k) => k });
+		const offSwitch = BoolField({ name: "n", label: "L", value: false, tt: (k) => k });
+		const trackOf = (node) => {
+			const found = [];
+			const walk = (n) => {
+				if (n === null || typeof n !== "object") return;
+				if (n.props?.role === "switch") found.push(n);
+				for (const c of n.children ?? []) walk(c);
+			};
+			walk(node);
+			return found[0];
+		};
+		for (const [state, node] of [["开", onSwitch], ["关", offSwitch]]) {
+			const track = trackOf(node);
+			assert.ok(track !== undefined, `${state} 态应渲染 role=switch 的轨道`);
+			const bg = track.props.style.background;
+			assert.ok(
+				typeof bg === "string" && bg.trim() !== "" && bg !== "none" && bg !== "transparent",
+				`${state} 态轨道必须有背景色，实际: ${JSON.stringify(bg)}`
+			);
+		}
+		// 与 DSH 原生开关（web-frontend 的 ._switch_1ik0f_5）保持一致的几何与配色。
+		// ON 滑块用 label-primary-foreground，只有 OFF 滑块才用 switch-thumb —— 别搞反。
+		const track = trackOf(onSwitch);
+		const trackOff = trackOf(offSwitch);
+		for (const [label, node] of [["开", track], ["关", trackOff]]) {
+			assert.equal(node.props.style.width, 36, `${label}态轨道宽应为 36`);
+			assert.equal(node.props.style.height, 20, `${label}态轨道高应为 20`);
+			assert.equal(node.props.style.padding, 2, `${label}态轨道 padding 应为 2`);
+		}
+		const thumbOf = (node) => node.children.find((c) => c?.type === "span");
+		assert.match(JSON.stringify(thumbOf(track).props.style), /label-primary-foreground/, "ON 滑块用 label-primary-foreground");
+		assert.equal(thumbOf(track).props.style.transform, "translateX(16px)", "ON 滑块应位移 16px");
+		assert.match(JSON.stringify(thumbOf(trackOff).props.style), /switch-thumb/, "OFF 滑块用 switch-thumb");
+		assert.equal(thumbOf(trackOff).props.style.transform, undefined, "OFF 滑块不应位移");
+		assert.match(JSON.stringify(onSwitch), /"aria-checked":true/);
+		assert.match(JSON.stringify(offSwitch), /"aria-checked":false/);
+		boolReact.teardown();
+	}
+	ok("开关轨道开/关两态都有背景色，几何与配色对齐 DSH 原生组件");
 }
 
 console.log("\n[D] 辅助函数");
@@ -376,6 +452,30 @@ console.log("\n[G] 收起后仍能展开（回归）");
 	assert.match(JSON.stringify(tree), /default-workspace/, "应渲染出目录路径");
 	ok("加载完成 → 渲染数据分支");
 
+	// 端到端：真实数据下的面板必须把每个字段的可见标签都渲染出来。
+	// （标签曾经整个漏渲染，界面上只有输入框和说明，用户不知道哪个框是什么。）
+	{
+		const panelJson = JSON.stringify(tree);
+		// 「高级」默认收起，所以这两个字段此时不该出现，单独在展开后再查
+		const expectedLabels = [
+			"field.directoryName", "field.parentDirectory", "field.documentsDirectory",
+			"field.title", "field.description", "field.instructions"
+		];
+		const missing = expectedLabels.filter((key) => !panelJson.includes(key));
+		assert.deepEqual(missing, [], "面板缺少这些字段的可见标签: " + missing.join(", "));
+		for (const key of ["field.autoCreate", "field.seedAgentsMd"]) {
+			assert.ok(panelJson.includes(key), `面板缺少开关字段标签: ${key}`);
+		}
+		assert.ok(!panelJson.includes("field.pollSeconds"), "收起的「高级」不该渲染其字段");
+		ok(`默认展开的区块渲染出全部字段标签（${expectedLabels.length + 2} 个）`);
+
+		// 开关必须在「开」态显示为已开启：默认配置里 enabled/autoCreate/seedAgentsMd 都是 true
+		assert.match(panelJson, /switch\.on/, "默认配置下应有开关处于开启态");
+		const switchCount = (panelJson.match(/"aria-checked"/g) ?? []).length;
+		assert.ok(switchCount >= 3, `应至少有 3 个开关，实际 ${switchCount}`);
+		ok(`开关状态渲染正确（${switchCount} 个 aria-checked）`);
+	}
+
 	// 四个区块的标题按钮都应存在（aria-label 形如 "<expand>: <title>"）
 	const headerFor = (sectionKey) => findButtons(tree).find((button) => {
 		const label = button.props?.["aria-label"];
@@ -422,7 +522,9 @@ console.log("\n[G] 收起后仍能展开（回归）");
 	assert.ok(advancedOpen !== undefined, "「高级」展开后标题按钮应仍在");
 	assert.equal(advancedOpen.props["aria-expanded"], true, "「高级」应能展开");
 	assert.match(JSON.stringify(tree), /field\.pollSeconds/, "展开后应渲染出内容");
-	ok("默认收起的「高级」→ 点击可展开并渲染内容");
+	assert.match(JSON.stringify(tree), /field\.allowedHosts/, "展开后应渲染出内容");
+	assert.match(JSON.stringify(tree), /field\.pollSecondsHint/, "展开后应渲染出说明文字");
+	ok("默认收起的「高级」→ 点击可展开并渲染内容（含字段标签）");
 
 	// 全部收起后，四个标题按钮依然都在（没有一个会消失）
 	for (const key of ["section.status", "section.base", "section.create", "section.advanced"]) {
@@ -440,6 +542,63 @@ console.log("\n[G] 收起后仍能展开（回归）");
 	ok("面板标题显示版本号 v0.1.1");
 
 	panelReact.teardown();
+}
+
+console.log("\n[H] CSS 变量必须真实存在（回归）");
+{
+	// 这是一类会静默毁掉样式的 bug：写一个不存在的 CSS 变量，整条声明被判非法、
+	// 浏览器直接忽略它，界面上什么都不会报错。
+	//
+	// 真实事故：开关轨道写成
+	//   background: var(--dsw-alias-bg-brand, var(--dsw-alias-state-success))
+	// 两个变量都不存在 → background 整条失效 → 开关不管开还是关都是个空心胶囊。
+	//
+	// 下面的清单是从 DSH 的 @deepseek-ai/dsh-client-ui-theme 实际定义里抄出来的。
+	// DSH 新增 token 时这份清单可能偏旧，但「我用了清单外的名字」一律视为错误 ——
+	// 宁可让人去核对一次，也不要再出现整条样式静默失效。
+	const DSH_TOKENS = new Set([
+		"--dsw-alias-bg-base", "--dsw-alias-bg-layer-1", "--dsw-alias-bg-layer-2",
+		"--dsw-alias-bg-layer-3", "--dsw-alias-bg-layer-4", "--dsw-alias-bg-mask-1",
+		"--dsw-alias-bg-module-platform", "--dsw-alias-border-l1", "--dsw-alias-border-l2",
+		"--dsw-alias-border-l3", "--dsw-alias-border-l4", "--dsw-alias-brand-primary",
+		"--dsw-alias-button-primary-fill", "--dsw-alias-button-primary-hover",
+		"--dsw-alias-button-ghost-active-border", "--dsw-alias-button-ghost-active-fill",
+		"--dsw-alias-interactive-bg-active", "--dsw-alias-interactive-bg-hover",
+		"--dsw-alias-interactive-bg-hover-danger", "--dsw-alias-label-caption",
+		"--dsw-alias-label-dimmed", "--dsw-alias-label-error", "--dsw-alias-label-primary",
+		"--dsw-alias-label-primary-foreground", "--dsw-alias-label-secondary",
+		"--dsw-alias-label-shimmer", "--dsw-alias-label-tertiary", "--dsw-alias-link",
+		"--dsw-alias-markdown-code-block", "--dsw-alias-markdown-inline-code",
+		"--dsw-alias-markdown-tag", "--dsw-alias-state-business-primary",
+		"--dsw-alias-state-error-primary", "--dsw-alias-state-idle-primary",
+		"--dsw-alias-state-success-primary", "--dsw-alias-state-success-tertiary",
+		"--dsw-alias-state-warn-label", "--dsw-alias-state-warn-primary",
+		"--dsw-alias-state-warn-tertiary", "--dsw-alias-switch-thumb",
+		"--dsw-alias-toast-bg", "--dsw-alias-toast-label", "--dsw-alias-tooltip-bg",
+		"--dsw-alias-tooltip-key-bg", "--dsw-alias-scrollbar-bg-l2",
+		"--dsw-alias-menu-group-header-fill", "--dsw-alias-menu-icon",
+		"--dsw-elevation-panel", "--dsw-elevation-prominent", "--dsw-elevation-soft",
+		"--dsw-elevation-stroke-color", "--dsw-focus-ring-color", "--dsw-focus-ring-width",
+		"--dsw-font-family", "--dsw-font-markdown-code-font-family",
+		"--dsw-font-markdown-base", "--dsw-font-markdown-base-strong",
+		"--dsw-font-markdown-code", "--dsw-font-markdown-code-block",
+		"--dsw-radius-xs", "--dsw-radius-sm", "--dsw-radius-md", "--dsw-radius-lg",
+		"--dsw-radius-panel", "--dsw-shadow-lv3", "--dsw-static-neutral-bluish-00"
+	]);
+
+	const { readFile } = await import("node:fs/promises");
+	const source = await readFile(new URL("./client.js", import.meta.url), "utf8");
+	const used = new Set();
+	for (const match of source.matchAll(/var\((--dsw-[a-z0-9-]+)/g)) used.add(match[1]);
+	assert.ok(used.size >= 15, `应提取到足够多的 token，实际 ${used.size} 个`);
+
+	const unknown = [...used].filter((token) => !DSH_TOKENS.has(token)).sort();
+	assert.deepEqual(
+		unknown,
+		[],
+		"以下 CSS 变量在 DSH 主题里不存在，会导致整条样式静默失效:\n    " + unknown.join("\n    ")
+	);
+	ok(`用到的 ${used.size} 个 --dsw-* 变量都真实存在`);
 }
 
 for (const dispose of disposers) try { dispose(); } catch { /* ignore */ }

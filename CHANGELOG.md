@@ -10,6 +10,42 @@
 
 ## [未发布]
 
+## [0.1.4] - 2026-10-08
+
+### 修复
+
+- **开关看起来永远处于关闭状态**。轨道背景写成了
+  `var(--dsw-alias-bg-brand, var(--dsw-alias-state-success))` —— 这两个变量在 DSH 主题里
+  **都不存在**，于是整条 `background` 声明被判为非法、浏览器直接忽略，轨道没有任何背景色，
+  不管开还是关都只是一个空心胶囊；滑块又是写死的 `#fff`，压在浅色背景上几乎看不见。
+  开关改为与 DSH 自带开关组件（`web-frontend` 的 `._switch_1ik0f_5`）**完全一致的几何与配色**：
+  36×20、`padding: 2px`、无边框；关闭态轨道用 `--dsw-alias-border-l3`、开启态用
+  `--dsw-alias-brand-primary`；滑块 16×16，开启态用 `--dsw-alias-label-primary-foreground`
+  并位移 16px，关闭态用 `--dsw-alias-switch-thumb`。
+
+- **所有输入框都没有可见标签**。`Field` 只在 `aria-label` 里用了 `label`，从来没有渲染它，
+  界面上只剩「一个孤零零的输入框 + 一串说明」，用户无从判断哪个框是哪个设置。
+  现在字段统一为两列网格：左列是标签 + 说明，右列是控件。
+
+### 变更
+
+- 面板按 DSH 的设计令牌重做：按钮有 hover 反馈与主/次/幽灵三种变体，输入框有聚焦描边，
+  「保存」只在真有改动时才升为主按钮；圆角、字号、间距统一走 `--dsw-radius-*` / `--dsw-alias-*`。
+- 修正一批**引用了不存在变量名**的样式：`--dsw-alias-bg-brand`、`--dsw-alias-state-success`、
+  `--dsw-alias-state-danger`、`--dsw-alias-state-warning`、`--dsw-alias-font-mono`
+  全部替换为真实 token。
+- 新增开/关状态文字（`switch.on` / `switch.off`）。
+
+### 测试
+
+- 新增回归：**所有 `var(--dsw-*)` 必须存在于 DSH 主题的 token 清单中** ——
+  这类错误会让整条样式静默失效、界面无任何报错，只能靠断言拦住。
+- 新增回归：`Field` / `BoolField` 必须渲染**可见标签**（不能只靠 `aria-label`）。
+- 新增回归：开关轨道在开/关两态都必须有背景色，且几何与配色对齐原生组件。
+- 测试脚手架修正：`createElement` 现在会真正调用函数组件、`useEffect` 会真正执行，
+  并新增可多次渲染的迷你 React。原来这些是空实现，面板永远停在 loading 分支 ——
+  上面这几类 bug 正是因此才没被测出来。
+
 ## [0.1.3] - 2026-10-08
 
 ### 变更

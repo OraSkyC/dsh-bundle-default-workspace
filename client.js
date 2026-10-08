@@ -106,7 +106,9 @@ var dsh_bundle_default_workspace_client = (function () {
 		"action.saved": "已保存",
 		"action.saveError": "保存失败：{error}",
 		"action.dirty": "未保存",
-		"action.resetting": "恢复中…"
+		"action.resetting": "恢复中…",
+		"switch.on": "已开启",
+		"switch.off": "已关闭"
 	};
 	const en = {
 		"entry.label": "Default workspace",
@@ -182,7 +184,9 @@ var dsh_bundle_default_workspace_client = (function () {
 		"action.saved": "Saved",
 		"action.saveError": "Save failed: {error}",
 		"action.dirty": "Unsaved",
-		"action.resetting": "Resetting…"
+		"action.resetting": "Resetting…",
+		"switch.on": "On",
+		"switch.off": "Off"
 	};
 
 	/* ------------------------------------------------------------------ */
@@ -238,15 +242,29 @@ var dsh_bundle_default_workspace_client = (function () {
 	/* ------------------------------------------------------------------ */
 	/* 样式（用宿主的设计令牌，不硬编码颜色）                                */
 	/* ------------------------------------------------------------------ */
+	// 控件尺寸与圆角统一走 DSH 自己的 token，明暗主题自动适配。
+	// 注意：这些名字必须与 @deepseek-ai/dsh-client-ui-theme 里定义的完全一致，
+	// 写错一个 var() 会让整条声明失效（曾经把开关轨道写成不存在的变量，
+	// 结果开关不管开关都是个空心胶囊）。
+	const CONTROL_HEIGHT = 32;
 	const BUTTON = {
-		height: 30,
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: 6,
+		height: CONTROL_HEIGHT,
 		padding: "0 12px",
-		borderRadius: 8,
+		borderRadius: "var(--dsw-radius-md, 8px)",
 		border: "1px solid var(--dsw-alias-border-l2)",
 		background: "var(--dsw-alias-bg-layer-2)",
 		color: "var(--dsw-alias-label-primary)",
 		fontSize: 13,
-		cursor: "pointer"
+		fontWeight: 500,
+		fontFamily: "inherit",
+		lineHeight: 1,
+		whiteSpace: "nowrap",
+		cursor: "pointer",
+		transition: "background .12s ease, border-color .12s ease, opacity .12s ease"
 	};
 	const S = {
 		page: {
@@ -308,39 +326,79 @@ var dsh_bundle_default_workspace_client = (function () {
 			justifyContent: "flex-end"
 		},
 		button: BUTTON,
+		buttonHover: {
+			background: "var(--dsw-alias-interactive-bg-hover)",
+			borderColor: "var(--dsw-alias-border-l3)"
+		},
 		buttonPrimary: {
 			...BUTTON,
-			background: "var(--dsw-alias-bg-brand, var(--dsw-alias-bg-layer-2))",
+			background: "var(--dsw-alias-button-primary-fill)",
+			borderColor: "transparent",
+			color: "var(--dsw-alias-label-primary-foreground)",
 			fontWeight: 600
 		},
-		buttonDisabled: {
+		buttonPrimaryHover: {
+			background: "var(--dsw-alias-button-primary-hover)"
+		},
+		buttonGhost: {
 			...BUTTON,
-			opacity: 0.5,
+			background: "transparent",
+			borderColor: "transparent",
+			color: "var(--dsw-alias-label-secondary)"
+		},
+		buttonGhostHover: {
+			background: "var(--dsw-alias-interactive-bg-hover)",
+			color: "var(--dsw-alias-label-primary)"
+		},
+		buttonDisabled: {
+			opacity: 0.45,
 			cursor: "default"
 		},
 		notice: {
-			margin: "0 0 16px",
+			display: "flex",
+			alignItems: "flex-start",
+			gap: 8,
+			margin: "0 0 14px",
 			padding: "10px 14px",
-			borderRadius: 10,
+			borderRadius: "var(--dsw-radius-md, 8px)",
 			fontSize: 13,
+			lineHeight: "20px",
 			border: "1px solid var(--dsw-alias-border-l2)",
-			background: "var(--dsw-alias-bg-layer-1)",
+			background: "var(--dsw-alias-bg-layer-2)",
 			color: "var(--dsw-alias-label-secondary)"
 		},
 		noticeBad: {
-			margin: "0 0 16px",
+			display: "flex",
+			alignItems: "flex-start",
+			gap: 8,
+			margin: "0 0 14px",
 			padding: "10px 14px",
-			borderRadius: 10,
+			borderRadius: "var(--dsw-radius-md, 8px)",
 			fontSize: 13,
-			border: "1px solid var(--dsw-alias-state-danger, var(--dsw-alias-border-l2))",
-			color: "var(--dsw-alias-label-primary)"
+			lineHeight: "20px",
+			border: "1px solid var(--dsw-alias-state-error-primary)",
+			background: "var(--dsw-alias-bg-layer-2)",
+			color: "var(--dsw-alias-state-error-primary)"
+		},
+		noticeWarn: {
+			display: "flex",
+			alignItems: "flex-start",
+			gap: 8,
+			margin: "0 0 14px",
+			padding: "10px 14px",
+			borderRadius: "var(--dsw-radius-md, 8px)",
+			fontSize: 13,
+			lineHeight: "20px",
+			border: "1px solid var(--dsw-alias-state-warn-primary)",
+			background: "var(--dsw-alias-bg-layer-2)",
+			color: "var(--dsw-alias-state-warn-label)"
 		},
 		sectionCard: {
 			border: "1px solid var(--dsw-alias-border-l1)",
-			borderRadius: 12,
+			borderRadius: "var(--dsw-radius-lg, 12px)",
 			background: "var(--dsw-alias-bg-layer-1)",
 			overflow: "hidden",
-			marginTop: 18
+			marginTop: 16
 		},
 		sectionHead: {
 			display: "flex",
@@ -362,31 +420,42 @@ var dsh_bundle_default_workspace_client = (function () {
 			fontWeight: 600
 		},
 		sectionBody: { padding: "4px 16px 16px" },
-		row: {
+		// 字段统一用两列网格：左列「标签 + 说明」，右列控件。
+		// 这样每个输入框都有可见标签，不会再出现「一个孤零零的输入框 + 一串说明」。
+		fieldGrid: {
 			display: "grid",
-			gridTemplateColumns: "minmax(150px, 240px) 1fr",
-			gap: "10px 16px",
+			gridTemplateColumns: "minmax(110px, 180px) minmax(0, 1fr)",
+			gap: "4px 20px",
 			alignItems: "start",
-			padding: "12px 0",
+			padding: "14px 0",
 			borderTop: "1px solid var(--dsw-alias-border-l1)"
 		},
-		rowFirst: {
+		fieldGridFirst: {
 			display: "grid",
-			gridTemplateColumns: "minmax(150px, 240px) 1fr",
-			gap: "10px 16px",
+			gridTemplateColumns: "minmax(110px, 180px) minmax(0, 1fr)",
+			gap: "4px 20px",
 			alignItems: "start",
-			padding: "12px 0"
+			padding: "6px 0 14px"
 		},
-		label: {
+		fieldLabel: {
 			fontSize: 13,
 			fontWeight: 600,
-			lineHeight: "30px"
+			lineHeight: "20px",
+			color: "var(--dsw-alias-label-primary)"
 		},
-		hint: {
-			margin: "6px 0 0",
+		fieldHint: {
+			marginTop: 3,
 			fontSize: 12,
-			color: "var(--dsw-alias-label-secondary)",
-			lineHeight: "18px"
+			lineHeight: "17px",
+			color: "var(--dsw-alias-label-tertiary)"
+		},
+		fieldControl: { minWidth: 0 },
+		fieldActions: {
+			display: "flex",
+			alignItems: "center",
+			gap: 8,
+			flexWrap: "wrap",
+			marginTop: 8
 		},
 		value: { fontSize: 13, lineHeight: "20px", overflowWrap: "anywhere", wordBreak: "break-word" },
 		valueMuted: {
@@ -398,64 +467,92 @@ var dsh_bundle_default_workspace_client = (function () {
 		},
 		code: {
 			display: "inline",
-			fontFamily: "var(--dsw-alias-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)",
+			fontFamily: "var(--dsw-font-markdown-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace)",
 			fontSize: 12,
 			padding: "1px 6px",
-			borderRadius: 5,
+			borderRadius: "var(--dsw-radius-xs, 4px)",
 			border: "1px solid var(--dsw-alias-border-l2)",
-			background: "var(--dsw-alias-bg-layer-2)",
+			background: "var(--dsw-alias-markdown-inline-code, var(--dsw-alias-bg-layer-2))",
 			overflowWrap: "anywhere",
 			wordBreak: "break-word"
-		},
-		chip: {
-			display: "inline-block",
-			padding: "0 8px",
-			borderRadius: 999,
-			border: "1px solid var(--dsw-alias-border-l2)",
-			fontSize: 12,
-			lineHeight: "20px",
-			background: "var(--dsw-alias-bg-layer-2)"
 		},
 		input: {
 			width: "100%",
 			minWidth: 0,
-			height: 34,
+			height: CONTROL_HEIGHT,
 			padding: "0 10px",
-			borderRadius: 8,
+			borderRadius: "var(--dsw-radius-md, 8px)",
 			border: "1px solid var(--dsw-alias-border-l2)",
 			background: "var(--dsw-alias-bg-base)",
 			color: "var(--dsw-alias-label-primary)",
-			font: "inherit",
-			fontSize: 13
+			fontFamily: "inherit",
+			fontSize: 13,
+			outline: "none",
+			transition: "border-color .12s ease"
 		},
+		inputFocus: { borderColor: "var(--dsw-alias-brand-primary)" },
 		textarea: {
 			width: "100%",
 			minWidth: 0,
-			minHeight: 96,
+			minHeight: 84,
 			padding: "8px 10px",
-			borderRadius: 8,
+			borderRadius: "var(--dsw-radius-md, 8px)",
 			border: "1px solid var(--dsw-alias-border-l2)",
 			background: "var(--dsw-alias-bg-base)",
 			color: "var(--dsw-alias-label-primary)",
-			font: "inherit",
+			fontFamily: "inherit",
 			fontSize: 13,
 			lineHeight: "20px",
-			resize: "vertical"
+			resize: "vertical",
+			outline: "none"
 		},
-		fieldRow: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" },
+		// 开关与 DSH 自带的开关组件（web-frontend 里的 ._switch_1ik0f_5）保持完全一致：
+		// 36x20、padding 2、无边框；OFF 轨道用 border-l3，ON 用 brand-primary；
+		// 滑块 16x16 圆，ON 用 label-primary-foreground / OFF 用 switch-thumb，位移 16px。
+		// 这样它和插件页里其它原生开关看起来就是同一个东西，而不是我臆造的样式。
+		switchTrack: {
+			boxSizing: "border-box",
+			position: "relative",
+			flex: "0 0 auto",
+			width: 36,
+			height: 20,
+			padding: 2,
+			border: 0,
+			borderRadius: 999,
+			cursor: "pointer",
+			transition: "background .12s ease"
+		},
+		switchTrackOn: { background: "var(--dsw-alias-brand-primary)" },
+		switchTrackOff: { background: "var(--dsw-alias-border-l3)" },
+		switchTrackFocus: {
+			outline: "var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary))",
+			outlineOffset: 2
+		},
+		switchThumb: {
+			display: "block",
+			width: 16,
+			height: 16,
+			borderRadius: "50%",
+			background: "var(--dsw-alias-label-primary-foreground)",
+			transition: "transform .12s ease, background .12s ease"
+		},
+		switchThumbOn: { transform: "translateX(16px)" },
+		switchThumbOff: { background: "var(--dsw-alias-switch-thumb)" },
+		switchTextOn: { fontSize: 13, color: "var(--dsw-alias-label-primary)" },
+		switchTextOff: { fontSize: 13, color: "var(--dsw-alias-label-tertiary)" },
 		dirty: {
 			fontSize: 12,
-			color: "var(--dsw-alias-state-warning, var(--dsw-alias-label-secondary))",
+			color: "var(--dsw-alias-state-warn-label)",
 			whiteSpace: "nowrap"
 		},
 		saved: {
 			fontSize: 12,
-			color: "var(--dsw-alias-state-success, var(--dsw-alias-label-secondary))",
+			color: "var(--dsw-alias-state-success-primary)",
 			whiteSpace: "nowrap"
 		},
 		error: {
 			fontSize: 12,
-			color: "var(--dsw-alias-state-danger, var(--dsw-alias-label-primary))",
+			color: "var(--dsw-alias-state-error-primary)",
 			overflowWrap: "anywhere"
 		}
 	};
@@ -491,11 +588,37 @@ var dsh_bundle_default_workspace_client = (function () {
 		);
 	}
 
-	/** 状态行：左标签、右取值。 */
+	/**
+	 * 一个带 hover 反馈的按钮。内联样式写不了 :hover，所以用本地 state 模拟。
+	 * variant: "secondary"（默认）| "primary" | "ghost"
+	 */
+	function Button({ variant = "secondary", disabled, onClick, children, title, label }) {
+		const [hover, setHover] = useState(false);
+		const base = variant === "primary" ? S.buttonPrimary : variant === "ghost" ? S.buttonGhost : S.button;
+		const hoverStyle = variant === "primary"
+			? S.buttonPrimaryHover
+			: variant === "ghost" ? S.buttonGhostHover : S.buttonHover;
+		const off = disabled === true;
+		return h("button", {
+			type: "button",
+			style: off ? { ...base, ...S.buttonDisabled } : hover ? { ...base, ...hoverStyle } : base,
+			disabled: off,
+			title,
+			"aria-label": label,
+			onClick: off ? undefined : onClick,
+			onMouseEnter: () => setHover(true),
+			onMouseLeave: () => setHover(false)
+		}, children);
+	}
+
+	/** 状态行：左标签、右取值。与字段网格共用列宽，视觉上对齐。 */
 	function StatusRow({ label, value, muted, first, children }) {
-		return h("div", { style: first ? S.rowFirst : S.row },
-			h("div", { style: S.label }, label),
-			children !== undefined ? children : h("div", { style: muted ? S.valueMuted : S.value }, value)
+		return h("div", { style: first ? S.fieldGridFirst : S.fieldGrid },
+			h("div", { style: S.fieldLabel }, label),
+			h("div", { style: S.fieldControl },
+				children !== undefined
+					? children
+					: h("div", { style: muted ? S.valueMuted : S.value }, value))
 		);
 	}
 
@@ -508,7 +631,7 @@ var dsh_bundle_default_workspace_client = (function () {
 	}
 
 	/** 把字节数变成人话。 */
-function sizeOf(bytes) {
+	function sizeOf(bytes) {
 		if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes < 0) return "";
 		if (bytes < 1024) return bytes + " B";
 		if (bytes < 1024 * 1024) return Math.round(bytes / 102.4) / 10 + " KB";
@@ -562,44 +685,57 @@ function sizeOf(bytes) {
 			}
 		}, [name, busy, tt]);
 
-		return h("div", { style: S.fieldRow },
-			kind === "textarea"
-				? h("textarea", {
-					style: S.textarea,
-					value: draft,
-					placeholder,
-					disabled: disabled || busy,
-					"aria-label": label,
-					onChange: (event) => setDraft(event.target.value)
-				})
-				: h("input", {
-					style: S.input,
-					type: kind === "number" ? "number" : "text",
-					value: draft,
-					placeholder,
-					disabled: disabled || busy,
-					"aria-label": label,
-					onChange: (event) => setDraft(event.target.value)
-				}),
-			h("button", {
-				type: "button",
-				style: busy ? S.buttonDisabled : S.buttonPrimary,
-				disabled: busy || !dirty,
-				onClick: () => commit(draft)
-			}, busy ? tt("action.saving") : tt("action.save")),
-			emptyMeansDefault
-				? h("button", {
-					type: "button",
-					style: busy ? S.buttonDisabled : S.button,
-					disabled: busy || draft === "",
-					onClick: () => commit(null)
-				}, busy ? tt("action.resetting") : tt("action.reset"))
-				: null,
-			dirty ? h("span", { style: S.dirty }, tt("action.dirty")) : null,
-			notice && notice.kind === "ok" ? h("span", { style: S.saved }, notice.message) : null,
-			error ? h("div", { style: { ...S.fieldRow, width: "100%" }, role: "alert" },
-				h("span", { style: S.error }, error)) : null,
-			hint ? h("div", { style: { ...S.hint, width: "100%" } }, hint) : null
+		const [focused, setFocused] = useState(false);
+
+		return h("div", { style: S.fieldGrid },
+			// 左列：可见标签 + 说明。这一列以前整个漏掉了，所以输入框没有任何标签。
+			h("div", null,
+				h("div", { style: S.fieldLabel }, label),
+				hint ? h("div", { style: S.fieldHint }, hint) : null
+			),
+			// 右列：控件 + 操作
+			h("div", { style: S.fieldControl },
+				kind === "textarea"
+					? h("textarea", {
+						style: S.textarea,
+						value: draft,
+						placeholder,
+						disabled: disabled || busy,
+						"aria-label": label,
+						onChange: (event) => setDraft(event.target.value)
+					})
+					: h("input", {
+						style: focused && !disabled ? { ...S.input, ...S.inputFocus } : S.input,
+						type: kind === "number" ? "number" : "text",
+						value: draft,
+						placeholder,
+						disabled: disabled || busy,
+						"aria-label": label,
+						onChange: (event) => setDraft(event.target.value),
+						onFocus: () => setFocused(true),
+						onBlur: () => setFocused(false)
+					}),
+				h("div", { style: S.fieldActions },
+					// 只有真改了东西，「保存」才升为主按钮，平时不抢注意力
+					h(Button, {
+						variant: dirty ? "primary" : "secondary",
+						disabled: busy || !dirty,
+						onClick: () => commit(draft),
+						label: tt("action.save") + " " + label
+					}, busy ? tt("action.saving") : tt("action.save")),
+					emptyMeansDefault
+						? h(Button, {
+							variant: "ghost",
+							disabled: busy || draft === "",
+							onClick: () => commit(null),
+							label: tt("action.reset") + " " + label
+						}, busy ? tt("action.resetting") : tt("action.reset"))
+						: null,
+					dirty ? h("span", { style: S.dirty }, tt("action.dirty")) : null,
+					notice && notice.kind === "ok" ? h("span", { style: S.saved }, notice.message) : null
+				),
+				error ? h("div", { style: { ...S.error, marginTop: 6 }, role: "alert" }, error) : null
+			)
 		);
 	}
 
@@ -608,6 +744,7 @@ function sizeOf(bytes) {
 		const [busy, setBusy] = useState(false);
 		const [error, setError] = useState(null);
 		const [notice, setNotice] = useState(null);
+		const [focused, setFocused] = useState(false);
 		const flash = (kind, message) => {
 			setNotice({ kind, message });
 			setTimeout(() => setNotice(null), 2200);
@@ -626,53 +763,46 @@ function sizeOf(bytes) {
 				setBusy(false);
 			}
 		}, [name, busy, tt]);
-		return h("div", { style: S.fieldRow },
-			h("button", {
-				type: "button",
-				role: "switch",
-				"aria-checked": value === true,
-				"aria-label": label,
-				style: {
-					...BUTTON,
-					display: "inline-flex",
-					gap: 8,
-					opacity: busy ? 0.6 : 1,
-					cursor: busy || disabled ? "default" : "pointer"
-				},
-				disabled: busy || disabled,
-				onClick: () => toggle(value !== true)
-			},
-				h("span", {
-					style: {
-						width: 34,
-						height: 18,
-						borderRadius: 999,
-						background: value === true
-							? "var(--dsw-alias-bg-brand, var(--dsw-alias-state-success))"
-							: "var(--dsw-alias-bg-layer-2)",
-						border: "1px solid var(--dsw-alias-border-l2)",
-						transition: "background .15s ease"
-					}
-				},
-					h("span", {
-						style: {
-							display: "block",
-							width: 14,
-							height: 14,
-							borderRadius: 999,
-							background: "#fff",
-							marginTop: 1,
-							marginLeft: value === true ? 17 : 1,
-							transition: "margin-left .15s ease"
-						}
-					})
-				),
-				h("span", { style: { fontSize: 13 } }, label)
+		const on = value === true;
+		const locked = busy === true || disabled === true;
+
+		return h("div", { style: S.fieldGrid },
+			h("div", null,
+				h("div", { style: S.fieldLabel }, label),
+				hint ? h("div", { style: S.fieldHint }, hint) : null
 			),
-			error ? h("div", { style: { ...S.fieldRow, width: "100%" }, role: "alert" },
-				h("span", { style: S.error }, error)) : null,
-			notice ? h("span", { style: S.saved }, notice.message) : null,
-			hint ? h("div", { style: { ...S.hint, width: "100%" } }, hint) : null
+			h("div", { style: S.fieldControl },
+				h("div", { style: S.fieldActions },
+					h("button", {
+						type: "button",
+						role: "switch",
+						"aria-checked": on,
+						"aria-label": label,
+						disabled: locked,
+						style: {
+							...S.switchTrack,
+							...(on ? S.switchTrackOn : S.switchTrackOff),
+							...(focused ? S.switchTrackFocus : null),
+							...(locked ? S.buttonDisabled : null)
+						},
+						onClick: () => toggle(!on),
+						onFocus: () => setFocused(true),
+						onBlur: () => setFocused(false)
+					},
+						h("span", {
+							style: {
+								...S.switchThumb,
+								...(on ? S.switchThumbOn : S.switchThumbOff)
+							}
+						})
+					),
+					h("span", { style: on ? S.switchTextOn : S.switchTextOff },
+						tt(on ? "switch.on" : "switch.off")),
+					busy ? h("span", { style: S.saved }, tt("action.saving")) : null,
+					notice ? h("span", { style: S.saved }, notice.message) : null
+				),
+				error ? h("div", { style: { ...S.error, marginTop: 6 }, role: "alert" }, error) : null
+			)
 		);
 	}
 
@@ -815,11 +945,9 @@ function sizeOf(bytes) {
 				),
 				h("div", { style: S.cluster },
 					updatedAt ? h("span", { style: S.updated }, tt("panel.updated").replace("{time}", clock(updatedAt))) : null,
-					h("button", {
-						type: "button",
-						style: S.button,
+					h(Button, {
 						onClick: () => load(),
-						"aria-label": tt("panel.refresh")
+						label: tt("panel.refresh")
 					}, tt("panel.refresh"))
 				)
 			),
@@ -861,12 +989,12 @@ function sizeOf(bytes) {
 							label: tt("status.tool"),
 							value: data.toolRegistered ? tt("status.toolYes") : tt("status.toolNo")
 						}),
-						!readonly ? h("div", { style: { ...S.fieldRow, width: "100%", marginTop: 14 } },
-							h("button", {
-								type: "button",
-								style: ensureBusy ? S.buttonDisabled : S.buttonPrimary,
+						!readonly ? h("div", { style: { ...S.fieldActions, marginTop: 14 } },
+							h(Button, {
+								variant: "primary",
 								disabled: ensureBusy,
-								onClick: () => runEnsure()
+								onClick: () => runEnsure(),
+								label: tt("status.ensure")
 							}, ensureBusy ? tt("status.ensureBusy") : tt("status.ensure")),
 							ensureMessage ? h("span", { style: S.saved }, ensureMessage) : null
 						) : null
@@ -878,15 +1006,14 @@ function sizeOf(bytes) {
 						onToggle: () => toggleSection("base"),
 						tt
 					},
-						h("div", { style: S.fieldRow },
-							h(BoolField, {
-								name: "enabled",
-								label: tt("field.enabled"),
-								hint: tt("field.enabledHint"),
-								value: effective.enabled,
-								disabled: ensureBusy,
-								tt
-							})),
+						h(BoolField, {
+							name: "enabled",
+							label: tt("field.enabled"),
+							hint: tt("field.enabledHint"),
+							value: effective.enabled,
+							disabled: ensureBusy,
+							tt
+						}),
 						h(Field, {
 							name: "directoryName",
 							label: tt("field.directoryName"),
@@ -937,33 +1064,30 @@ function sizeOf(bytes) {
 						onToggle: () => toggleSection("create"),
 						tt
 					},
-						h("div", { style: S.fieldRow },
-							h(BoolField, {
-								name: "autoCreate",
-								label: tt("field.autoCreate"),
-								hint: tt("field.autoCreateHint"),
-								value: effective.autoCreate,
-								disabled: readonly || ensureBusy,
-								tt
-							})),
-						h("div", { style: S.fieldRow },
-							h(BoolField, {
-								name: "seedAgentsMd",
-								label: tt("field.seedAgentsMd"),
-								hint: tt("field.seedAgentsMdHint"),
-								value: effective.seedAgentsMd,
-								disabled: readonly || ensureBusy,
-								tt
-							})),
-						!readonly && effective.seedAgentsMd === true ? h("div", { style: S.fieldRow },
-							h(BoolField, {
-								name: "overwriteSeed",
-								label: tt("field.overwriteSeed"),
-								hint: tt("field.overwriteSeedHint"),
-								value: effective.overwriteSeed,
-								disabled: ensureBusy,
-								tt
-							})) : null,
+						h(BoolField, {
+							name: "autoCreate",
+							label: tt("field.autoCreate"),
+							hint: tt("field.autoCreateHint"),
+							value: effective.autoCreate,
+							disabled: readonly || ensureBusy,
+							tt
+						}),
+						h(BoolField, {
+							name: "seedAgentsMd",
+							label: tt("field.seedAgentsMd"),
+							hint: tt("field.seedAgentsMdHint"),
+							value: effective.seedAgentsMd,
+							disabled: readonly || ensureBusy,
+							tt
+						}),
+						!readonly && effective.seedAgentsMd === true ? h(BoolField, {
+							name: "overwriteSeed",
+							label: tt("field.overwriteSeed"),
+							hint: tt("field.overwriteSeedHint"),
+							value: effective.overwriteSeed,
+							disabled: ensureBusy,
+							tt
+						}) : null,
 						h(Field, {
 							name: "description",
 							label: tt("field.description"),
