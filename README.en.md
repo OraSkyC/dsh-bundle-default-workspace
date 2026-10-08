@@ -360,7 +360,7 @@ node --check lib/index.js     # syntax
 node --check client.js
 
 node test-e2e.mjs             # host half (64 assertion groups)
-node test-client.mjs          # browser half (38 assertion groups)
+node test-client.mjs          # browser half (42 assertion groups)
 
 npm test                      # both
 ```

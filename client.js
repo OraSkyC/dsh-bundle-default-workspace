@@ -27,6 +27,27 @@ var dsh_bundle_default_workspace_client = (function () {
 	const ENSURE_PATH = "/api/" + NS + "/ensure";
 	const CLEAR_PATH = "/api/" + NS + "/clear";
 	const RESET_PATH = "/api/" + NS + "/reset";
+
+	/**
+	 * 面板状态订阅：任何一次 /settings 写入成功后，把宿主的响应广播给面板。
+	 *
+	 * 为什么用订阅而不是给每个字段层层传 prop：「保存后同步界面」这件事**每个字段都必须做**，
+	 * 而漏掉一个的症状是静默的 —— 开关不动、或者「未保存」一直挂着不消失，
+	 * 只有退出重进设置页才看到新值（因为那是重新拉了一次 /state）。
+	 * 真实事故：Field / BoolField 都把响应整个丢掉了，界面只能等下一次轮询
+	 * （默认 30 秒）。订阅还有个好处：DangerZone 里那个嵌套的 Field 也自动覆盖到了，
+	 * 不用再往深处多传一层 prop。
+	 */
+	let settingsSavedListener = null;
+	/** 广播一次保存结果。没有订阅者、响应不是对象、或订阅者自己抛错，都静默跳过。 */
+	function broadcastSettingsSaved(payload) {
+		if (typeof settingsSavedListener !== "function") return;
+		try {
+			settingsSavedListener(payload);
+		} catch {
+			/* 订阅者自己出错不该影响保存本身 */
+		}
+	}
 	/** 面板轮询的上下界（毫秒）；宿主会按 pollSeconds 覆写。 */
 	const CADENCE_MIN_MS = 5_000;
 	const CADENCE_MAX_MS = 3_600_000;
@@ -843,7 +864,10 @@ var dsh_bundle_default_workspace_client = (function () {
 			setError(null);
 			setNotice(null);
 			try {
-				await postJsonOrThrow(SETTINGS_PATH, { field: name, value: payloadValue });
+				const body = await postJsonOrThrow(SETTINGS_PATH, { field: name, value: payloadValue });
+				// 把宿主重算后的设置广播给面板。漏掉这一步，dirty 会一直挂在 true 上
+				// 显示「未保存」，输入框里还是用户打的草稿 —— 看起来像没保存成功。
+				broadcastSettingsSaved(body);
 				if (payloadValue === null) setDraft("");
 				flash("ok", tt("action.saved"));
 			} catch (reason) {
@@ -923,7 +947,9 @@ var dsh_bundle_default_workspace_client = (function () {
 			setError(null);
 			setNotice(null);
 			try {
-				await postJsonOrThrow(SETTINGS_PATH, { field: name, value: next });
+				const body = await postJsonOrThrow(SETTINGS_PATH, { field: name, value: next });
+				// 同上：不广播的话开关要等下一次轮询（默认 30 秒）才动
+				broadcastSettingsSaved(body);
 				flash("ok", tt("action.saved"));
 			} catch (reason) {
 				setError(tt("action.saveError").replace("{error}", reason instanceof Error ? reason.message : String(reason)));
@@ -1248,6 +1274,48 @@ var dsh_bundle_default_workspace_client = (function () {
 				if (inFlight.current === controller) inFlight.current = null;
 			}
 		}, []);
+
+		/**
+		 * 把 /settings 的响应并回面板状态。
+		 *
+		 * 这是「点了开关显示已保存、但开关不动」那个 bug 的修复核心：以前这里把响应丢掉了，
+		 * 界面只能等下一次轮询才更新（默认 30 秒），用户合理地以为没生效、只能退出重进。
+		 *
+		 * 宿主回的是一份**完整状态快照**（不是只有 effective），所以整份覆盖就行 ——
+		 * 派生字段（工作区标题、解析出的目录、回收站统计）也一并刷新。
+		 * 浅合并只是为了万一将来某个字段没回，也不至于把它抹成 undefined。
+		 *
+		 * 同时作废在途的轮询：那个快照可能早于这次写入，如果它晚于保存返回，
+		 * 就会把刚写进去的值又盖回旧的 —— 那就变成了「有时候灵有时候不灵」。
+		 */
+		const applySaved = useCallback((payload) => {
+			generation.current += 1;
+			inFlight.current?.abort?.();
+			inFlight.current = null;
+			setData((current) => {
+				if (current === null) return current;
+				if (payload === null || typeof payload !== "object") return current;
+				return { ...current, ...payload };
+			});
+			setUpdatedAt(Date.now());
+			// pollSeconds 也是普通设置项：改了它就得立刻换轮询节奏，
+			// 否则要等下一次轮询才生效 —— 又一个「设了但看起来没反应」。
+			const stated = payload?.effective?.pollSeconds;
+			if (typeof stated === "number" && Number.isFinite(stated)) {
+				setCadenceMs(Math.min(CADENCE_MAX_MS, Math.max(CADENCE_MIN_MS, Math.floor(stated) * 1000)));
+			}
+			// 依赖必须是空数组：函数体只用到 ref 与 setState（都稳定），
+			// 写成 [applySaved] 会在自己的初始化里读自己 —— 那是 TDZ ReferenceError。
+		}, []);
+
+		// 订阅保存结果：任何字段保存成功后都会广播，这里立刻同步界面。
+		// 卸载时只在自己仍是当前订阅者的情况下清空，免得把后来者的订阅误删。
+		useEffect(() => {
+			settingsSavedListener = applySaved;
+			return () => {
+				if (settingsSavedListener === applySaved) settingsSavedListener = null;
+			};
+		}, [applySaved]);
 
 		useEffect(() => {
 			let alive = true;

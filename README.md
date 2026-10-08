@@ -329,7 +329,7 @@ node --check lib/index.js     # 语法检查
 node --check client.js
 
 node test-e2e.mjs             # 宿主半侧（64 项断言组）
-node test-client.mjs          # 浏览器半侧（38 项断言组）
+node test-client.mjs          # 浏览器半侧（42 项断言组）
 
 npm test                     # 两个都跑
 ```
