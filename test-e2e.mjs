@@ -181,6 +181,24 @@ console.log("\n[3] AGENTS.md 种子");
 	assert.match(text, /这个工作区不是项目/);
 	ok("内置种子正文");
 
+	// 顶层禁令：这是种子里最重要的一条，掉了就等于没写
+	assert.match(text, /不要在顶层直接创建文件/, "种子必须明确禁止在顶层建文件");
+	assert.match(text, /临时文件/, "种子必须点名临时文件");
+	assert.match(text, /_scratch\//, "种子必须给出临时文件的去处");
+	assert.match(text, /node_modules\/.*dist\//s, "种子必须点名依赖目录与构建产物");
+	assert.match(text, /先停下来问一句/, "种子必须给出「拿不准就问」的兜底");
+	// 顺序：禁令要排在「不是项目」之前，越靠前权重越高
+	assert.ok(
+		text.indexOf("不要在顶层直接创建文件") < text.indexOf("这个工作区不是项目"),
+		"顶层禁令应排在「这个工作区不是项目」之前"
+	);
+	ok("顶层禁令：明确、点名临时文件、给出去处、含询问兜底");
+
+	// instructions 非空时整篇替换，顶层禁令也随之让位给用户自己的写法
+	const custom = seedText({ ...settings, instructions: "# 我自己写的\n" });
+	assert.equal(custom, "# 我自己写的\n");
+	ok("instructions 非空 → 整篇替换（用户可覆盖这条规则）");
+
 	const target = join(ROOT, "seed-target");
 	await mkdir(target, { recursive: true });
 	const first = await writeSeed(settings, target);

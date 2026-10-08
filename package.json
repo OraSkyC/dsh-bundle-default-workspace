@@ -2,7 +2,7 @@
   "name": "dsh-bundle-default-workspace",
   "displayName": "默认工作区",
   "icon": "./icon.svg",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "一个「默认工作区」：杂七杂八的小事不必区分项目时就用它。在设置里配置目录位置、展示标题、用途说明、AGENTS.md 种子文案，并给智能体一个 default_workspace 工具用于查询与创建。",
   "keywords": [
     "dsh-plugin",

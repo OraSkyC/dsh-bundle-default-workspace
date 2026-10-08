@@ -36,8 +36,11 @@ turning your scratch area into a half-finished project.
 
 - **One default workspace** — defaults to `<your Documents folder>/deepseek-harness/default-workspace`,
   created and registered with DSH automatically, titled "默认工作区" (Default Workspace).
-- **`AGENTS.md` seed** — explains what this workspace is for and, more importantly, what it is not,
-  plus how to clean up afterwards. **Never overwrites** an existing file by default.
+- **`AGENTS.md` seed** — the most important rule in it is **"do not put files directly in the top
+  level"**: no temp files, scratch drafts, verification scripts, dependency directories or build
+  output at the root. It names designated homes (`_scratch/`, `notes/`, `scripts/`) and ends with
+  "if you think you must, stop and ask first", so the agent cannot wreck your one clean landing spot.
+  **Never overwrites** an existing file by default.
 - **`default_workspace` agent tool** — ask "where is my default workspace" or "is it set up yet", or
   have the agent `ensure` it into existence.
 - **Visual configuration** — change the directory, title, purpose and seed text from the Plugins page.
