@@ -1,0 +1,54 @@
+# dsh-bundle-default-workspace —— 本 bundle 自己的补丁层。
+#
+# 提供一个「默认工作区」：杂七杂八的小事不必区分项目时就用它。
+# 面板卡片挂在「插件」页（plugins.bundle.config slot），不在侧栏。
+#
+# 这里写的是**部署默认值**。在面板里改的值会落到本插件自己的状态文件
+# （$DSH_HOME/state/dsh-bundle-default-workspace/settings.json），覆盖这些默认值，
+# 且立即生效、无需重启。想改部署默认值，就改这里，然后重启 dsh。
+- insert:
+    - id: dsh-bundle-default-workspace
+      name: dsh-bundle-default-workspace
+      config:
+        # 启用插件（关闭时不创建工具、不启动轮询、面板只读）
+        enabled: true
+
+        # 目录名（叶子）：工作区落在 <父目录>/<目录名>
+        # 留空使用默认值 default-workspace（与 DSH 内核的首用工作区同名，
+        # 因此默认配置下本插件直接包装内核的默认工作区）
+        directoryName: default-workspace
+
+        # 父目录覆盖。留空 = 自动解析为 <系统文档目录>/deepseek-harness。
+        # 填绝对路径（如 D:\dev\misc）则直接用它，不再拼接 deepseek-harness。
+        parentDirectory: ""
+
+        # 系统文档目录覆盖。仅在 parentDirectory 为空时生效；留空 = 自动探测
+        # （Windows 走 GetFolderPath、macOS 走 osascript、Linux 走 xdg-user-dir）。
+        # 探测失败时回落到 <用户主目录>/.dsh/workspaces。
+        documentsDirectory: ""
+
+        # 展示标题。留空 = 由目录名派生（中文显示「默认工作区」）。
+        # 注意：改标题会调用 workspaceRegistry 的 setTitle。
+        title: ""
+
+        # 用途说明，展示在面板与 AGENTS.md 里；留空使用内置文案。
+        description: ""
+
+        # 首次使用时自动创建目录并登记为工作区。
+        # 开启后面板或智能体无需手动点一次「确保」。
+        autoCreate: true
+
+        # 创建后写入 AGENTS.md，让智能体明白这个工作区是干什么的。
+        seedAgentsMd: true
+
+        # 种子说明正文。留空 = 内置中文文案；填了就整篇替换。
+        instructions: ""
+
+        # 即使 AGENTS.md 已存在也重写。默认 false：不覆盖用户自己的修改。
+        overwriteSeed: false
+
+        # 面板刷新间隔（秒）
+        pollSeconds: 30
+
+        # 允许访问本插件面板的额外主机名（叠加，不替换 localhost/127.0.0.1/::1）
+        allowedHosts: []

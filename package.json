@@ -1,0 +1,73 @@
+{
+  "name": "dsh-bundle-default-workspace",
+  "displayName": "默认工作区",
+  "icon": "./icon.svg",
+  "version": "0.1.2",
+  "description": "一个「默认工作区」：杂七杂八的小事不必区分项目时就用它。在设置里配置目录位置、展示标题、用途说明、AGENTS.md 种子文案，并给智能体一个 default_workspace 工具用于查询与创建。",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh-bundle",
+    "workspace",
+    "default-workspace",
+    "scratchpad",
+    "agents-md"
+  ],
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "client.js",
+    "icon.svg",
+    "locale",
+    "cordis.patch.yml",
+    "README.md",
+    "README.en.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test-e2e.mjs && node test-client.mjs",
+    "test:host": "node test-e2e.mjs",
+    "test:client": "node test-client.mjs",
+    "check": "node --check lib/index.js && node --check client.js"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.0 <5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OraSkyC/dsh-bundle-default-workspace.git"
+  },
+  "homepage": "https://github.com/OraSkyC/dsh-bundle-default-workspace#readme",
+  "bugs": {
+    "url": "https://github.com/OraSkyC/dsh-bundle-default-workspace/issues"
+  },
+  "license": "MIT"
+}

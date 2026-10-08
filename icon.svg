@@ -1,0 +1,18 @@
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="dw-bg" x1="18" y1="4" x2="18" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7C8CF8" />
+      <stop offset="1" stop-color="#3B46A8" />
+    </linearGradient>
+  </defs>
+  <!-- 底板 -->
+  <rect x="1.5" y="1.5" width="33" height="33" rx="9" fill="url(#dw-bg)" />
+  <!-- 文件夹：标签 + 主体 -->
+  <path d="M8 13.5 h6.2 l2.2 2.4 H28 a1.6 1.6 0 0 1 1.6 1.6 v9.4 a1.6 1.6 0 0 1 -1.6 1.6 H8 a1.6 1.6 0 0 1 -1.6 -1.6 V15.1 a1.6 1.6 0 0 1 1.6 -1.6 z"
+        fill="#FFFFFF" fill-opacity="0.18" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round" />
+  <!-- 小房子：默认/家 -->
+  <path d="M13.4 24.4 l4.6 -4.4 a0.8 0.8 0 0 1 1.1 0 l4.6 4.4"
+        stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M14.9 23.6 v3.6 h6.2 v-3.6"
+        stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

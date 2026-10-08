@@ -1,0 +1,18 @@
+# 依赖与构建产物（本插件是手写纯 JS，没有构建步骤）
+node_modules/
+dist/
+*.tgz
+
+# DSH 状态与本地配置
+.dsh/
+state/
+*.local.json
+
+# 测试与编辑器的临时产物
+*.log
+*.bak
+*.orig
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

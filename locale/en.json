@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Default Workspace",
+    "description": "A single workspace for the small miscellaneous stuff that does not need a project: configure the directory, display title, purpose and AGENTS.md seed text in settings, plus a default_workspace tool for the agent to query and create it."
+  }
+}
