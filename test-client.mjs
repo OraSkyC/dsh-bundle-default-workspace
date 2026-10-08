@@ -58,7 +58,9 @@ function makeReact() {
 			// {type: SectionCard} 这样的占位节点，永远找不到里面的按钮。
 			if (typeof type === "function") {
 				const merged = { ...(props ?? {}) };
-				merged.children = flat.length === 0 ? undefined : flat.length === 1 ? flat[0] : flat;
+				// 只在真的有位置子节点时才覆盖 children —— 否则会把通过 props
+				// 传进来的 children 抹成 undefined（真实 React 也是这个行为）。
+				if (flat.length > 0) merged.children = flat.length === 1 ? flat[0] : flat;
 				return type(merged);
 			}
 			return { type, props: props ?? null, children: flat };
@@ -203,10 +205,10 @@ ok(`slot 注册 → ${slot[1]} / key=${slot[2]}`);
 
 console.log("\n[C] 组件渲染");
 {
-	const { PanelPage, SectionCard, StatusRow, Field, BoolField } = out.panel.components;
+	const { PanelPage, SectionCard, StatusRow, ActionRow, Field, BoolField, DangerZone } = out.panel.components;
 	for (const [label, component] of [
 		["PanelPage", PanelPage], ["SectionCard", SectionCard], ["StatusRow", StatusRow],
-		["Field", Field], ["BoolField", BoolField]
+		["ActionRow", ActionRow], ["Field", Field], ["BoolField", BoolField], ["DangerZone", DangerZone]
 	]) {
 		assert.equal(typeof component, "function", `${label} 应为函数`);
 	}
@@ -371,6 +373,18 @@ console.log("\n[E] 文案键对齐");
 	assert.ok(Object.keys(zh).length >= 50);
 	ok(`中英各 ${Object.keys(zh).length} 个键，键集一致`);
 
+	// 面板渲染的是纯文本，不走 Markdown。文案里出现 Markdown 标记就会原样显示成
+	// 一堆星号（真实事故：设置页里写着「本插件**没有**…」，界面上就是四个星号）。
+	for (const [lang, dict] of [["zh", zh], ["en", en]]) {
+		for (const [key, value] of Object.entries(dict)) {
+			assert.ok(
+				!value.includes("**") && !value.includes("__"),
+				`${lang}.${key} 含 Markdown 标记，面板会原样显示: ${value}`
+			);
+		}
+	}
+	ok("文案不含 Markdown 标记（面板按纯文本渲染）");
+
 	// 面板与组件里用到的键必须都在字典里；键形如 a.b，用正则过滤掉拼接串
 	const KEY_RE = /^[a-z][a-z0-9]*([.][a-z][a-z0-9]*)+$/i;
 	const used = new Set();
@@ -381,14 +395,25 @@ console.log("\n[E] 文案键对齐");
 			else walk(value);
 		}
 	};
-	const { PanelPage, SectionCard, StatusRow, Field, BoolField } = out.panel.components;
+	const { PanelPage, SectionCard, StatusRow, ActionRow, Field, BoolField, DangerZone } = out.panel.components;
+	const CLEANUP = {
+		confirmToken: "default-workspace",
+		trashDir: "C:\\tmp\\deepseek-harness\\default-workspace\\_trash",
+		trashKeep: 5,
+		trashCount: 2,
+		trashBatches: ["20261008-231500-123", "20261008-120000-000"],
+		clear: { count: 3, bytes: 4096, exists: true, entries: [{ name: "tmp.txt", kind: "file", size: 3 }], truncated: false },
+		reset: { count: 4, bytes: 100000, exists: true, entries: [{ name: "AGENTS.md", kind: "file", size: 1864 }], truncated: false }
+	};
 	const states = [
 		PanelPage({ tt: (key) => key, localeSubscribe: () => () => {} }),
 		SectionCard({ title: "S", open: true, onToggle: () => {}, tt: (key) => key }),
 		StatusRow({ label: "L", value: "V" }),
+		ActionRow({ label: "L", hint: "H" }),
 		Field({ name: "n", label: "L", value: "V", kind: "text", tt: (key) => key }),
 		Field({ name: "n", label: "L", value: "", kind: "textarea", emptyMeansDefault: true, tt: (key) => key }),
-		BoolField({ name: "n", label: "L", value: false, tt: (key) => key })
+		BoolField({ name: "n", label: "L", value: false, tt: (key) => key }),
+		DangerZone({ data: { cleanup: CLEANUP }, readonly: false, tt: (key) => key })
 	];
 	for (const state of states) walk(state);
 	for (const key of used) assert.ok(key in zh, `缺字典键: ${key}`);
@@ -397,12 +422,14 @@ console.log("\n[E] 文案键对齐");
 
 console.log("\n[F] 端点路径");
 {
-	const { NS, STATE_PATH, SETTINGS_PATH, ENSURE_PATH } = out.panel.paths;
+	const { NS, STATE_PATH, SETTINGS_PATH, ENSURE_PATH, CLEAR_PATH, RESET_PATH } = out.panel.paths;
 	assert.equal(NS, "dsh-bundle-default-workspace");
 	assert.equal(STATE_PATH, "/api/dsh-bundle-default-workspace/state");
 	assert.equal(SETTINGS_PATH, "/api/dsh-bundle-default-workspace/settings");
 	assert.equal(ENSURE_PATH, "/api/dsh-bundle-default-workspace/ensure");
-	ok(`面板端点: ${STATE_PATH} / ${SETTINGS_PATH} / ${ENSURE_PATH}`);
+	assert.equal(CLEAR_PATH, "/api/dsh-bundle-default-workspace/clear");
+	assert.equal(RESET_PATH, "/api/dsh-bundle-default-workspace/reset");
+	ok(`面板端点: ${STATE_PATH} / ${SETTINGS_PATH} / ${ENSURE_PATH} / ${CLEAR_PATH} / ${RESET_PATH}`);
 }
 
 console.log("\n[G] 收起后仍能展开（回归）");
@@ -418,7 +445,22 @@ console.log("\n[G] 收起后仍能展开（回归）");
 		enabled: true, directoryName: "default-workspace", parentDirectory: "",
 		documentsDirectory: "", title: "", description: "", autoCreate: true,
 		seedAgentsMd: true, instructions: "", overwriteSeed: false,
-		pollSeconds: 30, allowedHosts: []
+		pollSeconds: 30, trashKeep: 5, allowedHosts: []
+	};
+	const cleanup = {
+		confirmToken: "default-workspace",
+		trashDir: "C:\\tmp\\deepseek-harness\\default-workspace\\_trash",
+		trashKeep: 5,
+		trashCount: 1,
+		trashBatches: ["20261008-231500-123"],
+		clear: {
+			count: 2, bytes: 2051, exists: true, truncated: false,
+			entries: [{ name: "tmp.txt", kind: "file", size: 3 }, { name: "_scratch", kind: "dir", size: 2048 }]
+		},
+		reset: {
+			count: 3, bytes: 3915, exists: true, truncated: false,
+			entries: [{ name: "AGENTS.md", kind: "file", size: 1864 }]
+		}
 	};
 	const payload = {
 		ok: true,
@@ -440,7 +482,8 @@ console.log("\n[G] 收起后仍能展开（回归）");
 		seedExists: true,
 		seedPath: "C:\\tmp\\deepseek-harness\\default-workspace\\AGENTS.md",
 		seedSize: 2048,
-		toolRegistered: true
+		toolRegistered: true,
+		cleanup
 	};
 	globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => payload });
 
@@ -481,15 +524,24 @@ console.log("\n[G] 收起后仍能展开（回归）");
 		const label = button.props?.["aria-label"];
 		return typeof label === "string" && label.endsWith(": " + sectionKey);
 	});
-	for (const key of ["section.status", "section.base", "section.create", "section.advanced"]) {
+	const SECTIONS = ["section.status", "section.base", "section.create", "section.advanced", "section.danger"];
+	for (const key of SECTIONS) {
 		assert.ok(headerFor(key) !== undefined, `缺少区块标题按钮: ${key}`);
 	}
-	// 初始：前三个展开，高级默认收起
+	// 初始：前三个展开，高级与危险操作默认收起
 	for (const key of ["section.status", "section.base", "section.create"]) {
 		assert.equal(headerFor(key).props["aria-expanded"], true, `${key} 初始应展开`);
 	}
 	assert.equal(headerFor("section.advanced").props["aria-expanded"], false, "section.advanced 初始应收起");
-	ok("四个区块标题按钮齐备，初始展开态正确");
+	assert.equal(
+		headerFor("section.danger").props["aria-expanded"], false,
+		"section.danger 初始应收起（破坏性操作不该在默认视野里）"
+	);
+	assert.ok(
+		!JSON.stringify(tree).includes("danger.clear"),
+		"收起的危险操作区不该渲染清空按钮"
+	);
+	ok("五个区块标题按钮齐备，初始展开态正确");
 
 	// 收起「基础设置」，再渲染：标题按钮必须还在，只是 aria-expanded 变 false
 	const baseHeader = headerFor("section.base");
@@ -526,16 +578,16 @@ console.log("\n[G] 收起后仍能展开（回归）");
 	assert.match(JSON.stringify(tree), /field\.pollSecondsHint/, "展开后应渲染出说明文字");
 	ok("默认收起的「高级」→ 点击可展开并渲染内容（含字段标签）");
 
-	// 全部收起后，四个标题按钮依然都在（没有一个会消失）
-	for (const key of ["section.status", "section.base", "section.create", "section.advanced"]) {
+	// 全部收起后，五个标题按钮依然都在（没有一个会消失）
+	for (const key of SECTIONS) {
 		const header = headerFor(key);
 		if (header.props["aria-expanded"] === true) header.props.onClick();
 	}
 	tree = renderPanel(panelReact, PanelPage, tt);
-	for (const key of ["section.status", "section.base", "section.create", "section.advanced"]) {
+	for (const key of SECTIONS) {
 		assert.ok(headerFor(key) !== undefined, `全收起后 ${key} 的标题按钮消失了`);
 	}
-	ok("全部收起 → 四个标题按钮依旧全在");
+	ok("全部收起 → 五个标题按钮依旧全在");
 
 	// 版本号小标：面板头部要能看出当前跑的是哪个构建
 	assert.match(JSON.stringify(tree), /"v0\.1\.1"/, "面板应显示宿主报的版本号");
@@ -544,7 +596,229 @@ console.log("\n[G] 收起后仍能展开（回归）");
 	panelReact.teardown();
 }
 
-console.log("\n[H] CSS 变量必须真实存在（回归）");
+console.log("\n[H] 危险操作：清空/重置的确认闸门");
+{
+	const { DangerZone, CLEAR_PATH, RESET_PATH } = { ...out.panel.components, ...out.panel.paths };
+	// 这一段故意用**真实中文文案**而不是 (key) => key：确认闸门的文案里有
+	// {count}/{size}/{action} 这类占位符，用 key 当翻译的话 replace 无处可施，
+	// 「宿主拒绝的措辞有没有透出来」这种断言就永远测不到（我一开始就栽在这里）。
+	const zhDict = out.panel.dictionaries.zh;
+	const tt = (key) => zhDict[key] ?? key;
+	const cleanup = {
+		confirmToken: "default-workspace",
+		trashDir: "C:\\ws\\_trash",
+		trashKeep: 5,
+		trashCount: 1,
+		trashBatches: ["20261008-231500-123"],
+		clear: {
+			count: 12, bytes: 4096, exists: true, truncated: false,
+			entries: Array.from({ length: 12 }, (_, i) => ({ name: `item-${i}.txt`, kind: "file", size: 10 }))
+		},
+		reset: {
+			count: 13, bytes: 5960, exists: true, truncated: false,
+			entries: [{ name: "AGENTS.md", kind: "file", size: 1864 }]
+		}
+	};
+
+	/** 找一个 type==="button" 且可见文字等于 text 的节点。 */
+	const textOf = (node) => (node.children ?? []).filter((c) => typeof c === "string").join("");
+	const button = (tree, text) => findButtons(tree).find((b) => textOf(b) === text);
+	const byProp = (tree, predicate) => {
+		let found;
+		const walk = (node) => {
+			if (found !== undefined || node === null || typeof node !== "object") return;
+			if (predicate(node)) { found = node; return; }
+			for (const child of node.children ?? []) walk(child);
+		};
+		walk(tree);
+		return found;
+	};
+	const dialog = (tree) => byProp(tree, (n) => n.props?.role === "alertdialog");
+	// 必须从确认面板内部找输入框：面板里还有个 trashKeep 数字框排在前面，
+	// 全树搜第一个 input 会拿到它，输进去的是「保留份数」而不是确认词。
+	const confirmInput = (tree) => byProp(dialog(tree), (n) => n.type === "input");
+
+	let doneCount = 0;
+	let reactApi;
+
+	// 宿主没给 cleanup 字段（旧构建）时要说清楚，而不是渲染一堆 undefined。
+	// 注意：这段必须跑在主流程之前，并且自己独占一个 React 实例 ——
+	// freshReact() 会改掉模块级的 api，主流程的 begin() 与组件用的实例必须是同一个，
+	// 否则 hook 游标错位，状态永远对不上（这个坑我自己踩过一次）。
+	{
+		const bareReact = freshReact();
+		for (const data of [{}, null]) {
+			bareReact.begin();
+			const bare = DangerZone({ data, readonly: false, tt });
+			bareReact.flush();
+			assert.match(JSON.stringify(bare), /宿主没有提供清理接口/, `data=${JSON.stringify(data)} 应提示宿主缺接口`);
+			assert.equal(findButtons(bare).length, 0, "缺接口时不该渲染任何按钮");
+		}
+		bareReact.teardown();
+		ok("宿主缺 cleanup 接口 → 明确提示，不渲染按钮");
+	}
+
+	reactApi = freshReact();
+	const make = (overrides = {}) => {
+		reactApi.begin();
+		const tree = DangerZone({
+			data: { cleanup },
+			readonly: false,
+			tt,
+			onDone: async () => { doneCount += 1; },
+			...overrides
+		});
+		reactApi.flush();
+		return tree;
+	};
+
+	let tree = make();
+	assert.ok(button(tree, "清空工作区") !== undefined, "应有清空按钮");
+	assert.ok(button(tree, "重置工作区") !== undefined, "应有重置按钮");
+	assert.equal(dialog(tree), undefined, "初始不该有确认面板");
+	assert.match(JSON.stringify(tree), /当前内容/, "应显示当前内容");
+	assert.match(JSON.stringify(tree), /12 项 · 4 KB/, "应把待清理项数与体积写成人话");
+	assert.match(JSON.stringify(tree), /回收站/, "应显示回收站状态");
+	assert.match(JSON.stringify(tree), /1 批 · 最新：20261008-231500-123/, "应显示回收站批次数与最新批次");
+	assert.match(JSON.stringify(tree), /回收站保留份数/, "trashKeep 要有可见标签");
+	ok("初始：两个危险按钮 + 状态行，无确认面板");
+
+	// 逐字确认：未输入 / 输错时确认按钮必须禁用
+	button(tree, "清空工作区").props.onClick();
+	tree = make();
+	assert.ok(dialog(tree) !== undefined, "点「清空」后应展开确认面板");
+	assert.match(JSON.stringify(dialog(tree)), /确认清空「default-workspace」/, "要写明清的是哪个目录");
+	assert.equal(button(tree, "确认清空").props.disabled, true, "一个字都没输入时不能放行");
+	assert.match(JSON.stringify(dialog(tree)), /item-0\.txt/, "确认面板要列出将被搬走的条目");
+	assert.match(JSON.stringify(dialog(tree)), /还有 4 项/, "12 条只列前 8 条，其余折叠计数");
+
+	confirmInput(tree).props.onChange({ target: { value: "default-workspac" } });
+	tree = make();
+	assert.equal(button(tree, "确认清空").props.disabled, true, "确认词不符时不能放行");
+
+	confirmInput(tree).props.onChange({ target: { value: "default-workspace" } });
+	tree = make();
+	assert.equal(button(tree, "确认清空").props.disabled, false, "逐字打对后才放行");
+	ok("确认闸门：未输入/输错都禁用，逐字打对才可点");
+
+	// 确认按钮真的把确认词发给宿主
+	const calls = [];
+	globalThis.fetch = async (path, init) => {
+		calls.push({ path, body: JSON.parse(init.body) });
+		return {
+			ok: true,
+			status: 200,
+			json: async () => ({
+				ok: true, action: "clear", movedCount: 12, bytes: 4096,
+				trashPath: "C:\\ws\\_trash\\20261008-231500-123",
+				pruned: [], failed: [], empty: false
+			})
+		};
+	};
+	await button(tree, "确认清空").props.onClick();
+	assert.equal(calls.length, 1, "应发出一次请求");
+	assert.equal(calls[0].path, CLEAR_PATH);
+	assert.deepEqual(calls[0].body, { confirm: "default-workspace" });
+	assert.equal(doneCount, 1, "执行成功后应回调 onDone 让面板重新拉状态");
+	tree = make();
+	assert.equal(dialog(tree), undefined, "执行后应收起确认面板");
+	assert.match(JSON.stringify(tree), /已清空 12 项（4 KB）/, "应报出结果");
+	assert.match(JSON.stringify(tree), /20261008-231500-123/, "应告诉用户去哪找回");
+	ok("确认 → POST /clear 带上确认词，随后收起并报结果");
+
+	// 重置走另一条路径，并额外提示 AGENTS.md 也会被搬走
+	button(tree, "重置工作区").props.onClick();
+	tree = make();
+	const resetDialog = JSON.stringify(dialog(tree));
+	assert.match(resetDialog, /AGENTS\.md 也会被搬走/, "重置要提示 AGENTS.md 也会被搬走");
+	assert.match(resetDialog, /确认重置「default-workspace」/);
+	assert.match(resetDialog, /AGENTS\.md/, "重置的清单里应有 AGENTS.md");
+	confirmInput(tree).props.onChange({ target: { value: "default-workspace" } });
+	tree = make();
+	globalThis.fetch = async (path, init) => {
+		calls.push({ path, body: JSON.parse(init.body) });
+		return {
+			ok: true,
+			status: 200,
+			json: async () => ({
+				ok: true, action: "reset", movedCount: 13, bytes: 5960,
+				trashPath: "C:\\ws\\_trash\\20261008-231600-000",
+				pruned: [], failed: [],
+				seed: { written: true }, workspaceError: null, empty: false
+			})
+		};
+	};
+	await button(tree, "确认重置").props.onClick();
+	assert.equal(calls[1].path, RESET_PATH);
+	assert.equal(calls[1].body.confirm, "default-workspace");
+	tree = make();
+	assert.match(JSON.stringify(tree), /已重置：搬走 13 项（5\.8 KB），AGENTS\.md 已重新生成/,
+		"重置结果要说清 AGENTS.md 的去向");
+	ok("重置 → POST /reset，文案点明 AGENTS.md 去向");
+
+	// 宿主拒绝（例如插件已停用）时，错误要原样呈现而不是静默
+	globalThis.fetch = async () => ({
+		ok: false,
+		status: 400,
+		json: async () => ({ ok: false, error: "插件已禁用，拒绝清空或重置" })
+	});
+	button(tree, "清空工作区").props.onClick();
+	tree = make();
+	confirmInput(tree).props.onChange({ target: { value: "default-workspace" } });
+	tree = make();
+	await button(tree, "确认清空").props.onClick();
+	tree = make();
+	assert.match(JSON.stringify(tree), /插件已禁用，拒绝清空或重置/, "宿主拒绝的措辞要透出来");
+	assert.match(JSON.stringify(tree), /失败：/, "并标记为失败");
+	ok("宿主拒绝 → 原样显示宿主措辞，且不静默");
+
+	// 空操作 vs 全部搬不动：两者 movedCount 都是 0，文案必须分得开。
+	// 「什么都没动」和「想动但一个都没搬走」是两件事，混为一谈就是在骗用户。
+	{
+		const cases = [
+			{
+				name: "empty",
+				reply: { ok: true, empty: true, movedCount: 0, bytes: 0, failed: [], trashPath: null, pruned: [] },
+				expect: /没有可清理的内容/,
+				reject: /已清空/
+			},
+			{
+				name: "all-failed",
+				reply: {
+					ok: true, empty: false, movedCount: 0, attempted: 1, bytes: 0,
+					failed: ["locked.txt"], trashPath: "C:\\ws\\_trash\\20261008-240000-000", pruned: []
+				},
+				expect: /没能搬走：locked\.txt/,
+				reject: /没有可清理的内容|已清空/
+			}
+		];
+		for (const item of cases) {
+			globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => item.reply });
+			// 上一次失败后确认面板是**留着**的（方便直接重试），成功后才收起；
+			// 而按钮是开/关切换的，所以这里要先看状态再点，别把它关掉。
+			if (dialog(tree) === undefined) button(tree, "清空工作区").props.onClick();
+			tree = make();
+			assert.ok(dialog(tree) !== undefined, `${item.name}: 确认面板应处于展开状态`);
+			confirmInput(tree).props.onChange({ target: { value: "default-workspace" } });
+			tree = make();
+			await button(tree, "确认清空").props.onClick();
+			tree = make();
+			const shown = JSON.stringify(tree);
+			assert.match(shown, item.expect, `${item.name} 应出现正确措辞`);
+			assert.doesNotMatch(shown, item.reject, `${item.name} 不该出现误导性措辞`);
+		}
+		ok("空操作与全部搬不动分得清，不谎报「已清空」");
+	}
+
+	// 插件停用：面板只读，两个按钮都不给按
+	const roTree = make({ readonly: true });
+	assert.equal(button(roTree, "清空工作区").props.disabled, true, "只读时清空应禁用");
+	assert.equal(button(roTree, "重置工作区").props.disabled, true, "只读时重置应禁用");
+	ok("插件停用 → 两个危险按钮都禁用");
+	reactApi.teardown();
+}
+
+console.log("\n[I] CSS 变量必须真实存在（回归）");
 {
 	// 这是一类会静默毁掉样式的 bug：写一个不存在的 CSS 变量，整条声明被判非法、
 	// 浏览器直接忽略它，界面上什么都不会报错。

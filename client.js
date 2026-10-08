@@ -25,6 +25,8 @@ var dsh_bundle_default_workspace_client = (function () {
 	const STATE_PATH = "/api/" + NS + "/state";
 	const SETTINGS_PATH = "/api/" + NS + "/settings";
 	const ENSURE_PATH = "/api/" + NS + "/ensure";
+	const CLEAR_PATH = "/api/" + NS + "/clear";
+	const RESET_PATH = "/api/" + NS + "/reset";
 	/** 面板轮询的上下界（毫秒）；宿主会按 pollSeconds 覆写。 */
 	const CADENCE_MIN_MS = 5_000;
 	const CADENCE_MAX_MS = 3_600_000;
@@ -108,7 +110,43 @@ var dsh_bundle_default_workspace_client = (function () {
 		"action.dirty": "未保存",
 		"action.resetting": "恢复中…",
 		"switch.on": "已开启",
-		"switch.off": "已关闭"
+		"switch.off": "已关闭",
+		"section.danger": "清理与重置",
+		"danger.intro": "这两个操作只影响当前工作区目录。删除的文件不会直接消失，而是先搬进工作区里的回收站，可以手动找回。",
+		"danger.unavailable": "宿主没有提供清理接口。新版本需要重启 DSH 才会加载。",
+		"danger.content": "当前内容",
+		"danger.contentValue": "{count} 项 · {size}",
+		"danger.contentEmpty": "空",
+		"danger.contentMore": "{count} 项以上 · {size}",
+		"danger.trash": "回收站",
+		"danger.trashValue": "{count} 批",
+		"danger.trashEmpty": "空",
+		"danger.trashLatest": "最新：{name}",
+		"danger.trashKeep": "回收站保留份数",
+		"danger.trashKeepHint": "超出份数的最旧批次会被真正删除；填 0 则不自动清理。自动清理只认插件自己创建的批次名。",
+		"danger.clear": "清空工作区",
+		"danger.clearHint": "搬走所有内容与子目录，保留 AGENTS.md 和回收站。",
+		"danger.reset": "重置工作区",
+		"danger.resetHint": "全部恢复初始化：内容与 AGENTS.md 一起搬走，随后按当前设置重新生成 AGENTS.md。",
+		"danger.action.clear": "清空",
+		"danger.action.reset": "重置",
+		"danger.confirmTitle": "确认{action}「{dir}」",
+		"danger.confirmList": "将被搬进回收站的顶层条目：",
+		"danger.confirmMore": "…还有 {count} 项",
+		"danger.confirmEmpty": "目录里没有可清理的内容。",
+		"danger.confirmResetNote": "AGENTS.md 也会被搬走，随后按当前设置重新生成。",
+		"danger.confirmHint": "逐字输入这个目录名以确认：",
+		"danger.confirm": "确认{action}",
+		"danger.cancel": "取消",
+		"danger.busy": "处理中…",
+		"danger.clearDone": "已清空 {count} 项（{size}），可在 {trash} 找回。",
+		"danger.resetDone": "已重置：搬走 {count} 项（{size}），AGENTS.md {seed}。",
+		"danger.seedWritten": "已重新生成",
+		"danger.seedSkipped": "未重新生成（写入已关闭）",
+		"danger.nothingToDo": "目录里没有可清理的内容，什么都没动。",
+		"danger.pruned": "顺带删掉了 {count} 个最旧批次。",
+		"danger.failed": "以下条目没能搬走：{names}",
+		"danger.error": "失败：{error}"
 	};
 	const en = {
 		"entry.label": "Default workspace",
@@ -186,7 +224,43 @@ var dsh_bundle_default_workspace_client = (function () {
 		"action.dirty": "Unsaved",
 		"action.resetting": "Resetting…",
 		"switch.on": "On",
-		"switch.off": "Off"
+		"switch.off": "Off",
+		"section.danger": "Clean up and reset",
+		"danger.intro": "Both actions only touch the current workspace directory. Nothing is deleted outright — files are moved into a recycle bin inside the workspace first, so you can take them back.",
+		"danger.unavailable": "The host does not expose the cleanup endpoint. A new build needs a DSH restart to load.",
+		"danger.content": "Current contents",
+		"danger.contentValue": "{count} items · {size}",
+		"danger.contentEmpty": "Empty",
+		"danger.contentMore": "{count}+ items · {size}",
+		"danger.trash": "Recycle bin",
+		"danger.trashValue": "{count} batches",
+		"danger.trashEmpty": "Empty",
+		"danger.trashLatest": "Newest: {name}",
+		"danger.trashKeep": "Batches to keep",
+		"danger.trashKeepHint": "The oldest batches beyond this count are really deleted; 0 disables automatic cleanup. Only batches this plugin created are ever touched.",
+		"danger.clear": "Clear the workspace",
+		"danger.clearHint": "Moves every file and subdirectory away, keeping AGENTS.md and the recycle bin.",
+		"danger.reset": "Reset the workspace",
+		"danger.resetHint": "Back to a fresh start: contents and AGENTS.md are moved away, then AGENTS.md is regenerated from the current settings.",
+		"danger.action.clear": "clear",
+		"danger.action.reset": "reset",
+		"danger.confirmTitle": "Confirm {action} of \"{dir}\"",
+		"danger.confirmList": "Top-level entries that will be moved to the recycle bin:",
+		"danger.confirmMore": "…and {count} more",
+		"danger.confirmEmpty": "There is nothing to clean up in this directory.",
+		"danger.confirmResetNote": "AGENTS.md is moved away too and then regenerated from the current settings.",
+		"danger.confirmHint": "Type this directory name to confirm:",
+		"danger.confirm": "Confirm {action}",
+		"danger.cancel": "Cancel",
+		"danger.busy": "Working…",
+		"danger.clearDone": "Cleared {count} items ({size}); recover them from {trash}.",
+		"danger.resetDone": "Reset done: moved {count} items ({size}); AGENTS.md {seed}.",
+		"danger.seedWritten": "regenerated",
+		"danger.seedSkipped": "not regenerated (writing is off)",
+		"danger.nothingToDo": "Nothing to clean up; nothing was touched.",
+		"danger.pruned": "Also removed {count} of the oldest batches.",
+		"danger.failed": "These entries could not be moved: {names}",
+		"danger.error": "Failed: {error}"
 	};
 
 	/* ------------------------------------------------------------------ */
@@ -349,6 +423,25 @@ var dsh_bundle_default_workspace_client = (function () {
 		buttonGhostHover: {
 			background: "var(--dsw-alias-interactive-bg-hover)",
 			color: "var(--dsw-alias-label-primary)"
+		},
+		// 破坏性操作用错误色：红字 + 红边，hover 时铺一层半透明红底。
+		//
+		// 这里刻意**不**做「红底白字」的实心按钮。翻过 DSH 自己的样式（审批面板的
+		// 拒绝按钮 .j_8BDW_reject）之后发现，它的危险态就是这两个令牌：
+		//   color: var(--dsw-alias-state-error-primary)
+		//   background: var(--dsw-alias-interactive-bg-hover-danger)   ← 只有 5%~15% 透明度
+		// 也就是说 state-error-primary 在 DSH 里从来只当**前景色/描边**用，
+		// 拿它填满按钮再配 label-primary-foreground 是我自己臆造的搭配，
+		// 对比度和观感都没人保证过。照抄原生那一套更稳。
+		buttonDanger: {
+			...BUTTON,
+			background: "transparent",
+			borderColor: "var(--dsw-alias-state-error-primary)",
+			color: "var(--dsw-alias-state-error-primary)",
+			fontWeight: 600
+		},
+		buttonDangerHover: {
+			background: "var(--dsw-alias-interactive-bg-hover-danger)"
 		},
 		buttonDisabled: {
 			opacity: 0.45,
@@ -554,6 +647,64 @@ var dsh_bundle_default_workspace_client = (function () {
 			fontSize: 12,
 			color: "var(--dsw-alias-state-error-primary)",
 			overflowWrap: "anywhere"
+		},
+		// 危险操作区的确认面板：用错误色描边圈起来，醒目但不刺眼。
+		dangerBox: {
+			marginTop: 14,
+			padding: "12px 14px",
+			borderRadius: "var(--dsw-radius-md, 8px)",
+			border: "1px solid var(--dsw-alias-state-error-primary)",
+			background: "var(--dsw-alias-bg-layer-2)"
+		},
+		dangerTitle: {
+			fontSize: 13,
+			fontWeight: 600,
+			lineHeight: "20px",
+			marginBottom: 6,
+			color: "var(--dsw-alias-label-primary)"
+		},
+		dangerNote: {
+			fontSize: 12,
+			lineHeight: "18px",
+			marginBottom: 8,
+			color: "var(--dsw-alias-label-secondary)"
+		},
+		dangerList: {
+			margin: "0 0 10px",
+			padding: "0 0 0 2px",
+			listStyle: "none",
+			fontSize: 12,
+			lineHeight: "18px",
+			color: "var(--dsw-alias-label-secondary)",
+			maxHeight: 126,
+			overflowY: "auto"
+		},
+		dangerItem: {
+			fontFamily: "var(--dsw-font-markdown-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace)",
+			overflowWrap: "anywhere",
+			wordBreak: "break-word"
+		},
+		dangerInput: {
+			width: "100%",
+			minWidth: 0,
+			maxWidth: 320,
+			height: CONTROL_HEIGHT,
+			padding: "0 10px",
+			borderRadius: "var(--dsw-radius-md, 8px)",
+			border: "1px solid var(--dsw-alias-border-l2)",
+			background: "var(--dsw-alias-bg-base)",
+			color: "var(--dsw-alias-label-primary)",
+			fontFamily: "var(--dsw-font-markdown-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace)",
+			fontSize: 13,
+			outline: "none"
+		},
+		dangerInputOk: { borderColor: "var(--dsw-alias-state-success-primary)" },
+		ok: {
+			fontSize: 12,
+			lineHeight: "18px",
+			color: "var(--dsw-alias-state-success-primary)",
+			overflowWrap: "anywhere",
+			wordBreak: "break-word"
 		}
 	};
 
@@ -590,14 +741,18 @@ var dsh_bundle_default_workspace_client = (function () {
 
 	/**
 	 * 一个带 hover 反馈的按钮。内联样式写不了 :hover，所以用本地 state 模拟。
-	 * variant: "secondary"（默认）| "primary" | "ghost"
+	 * variant: "secondary"（默认）| "primary" | "danger" | "ghost"
 	 */
 	function Button({ variant = "secondary", disabled, onClick, children, title, label }) {
 		const [hover, setHover] = useState(false);
-		const base = variant === "primary" ? S.buttonPrimary : variant === "ghost" ? S.buttonGhost : S.button;
+		const base = variant === "primary"
+			? S.buttonPrimary
+			: variant === "danger" ? S.buttonDanger
+				: variant === "ghost" ? S.buttonGhost : S.button;
 		const hoverStyle = variant === "primary"
 			? S.buttonPrimaryHover
-			: variant === "ghost" ? S.buttonGhostHover : S.buttonHover;
+			: variant === "danger" ? S.buttonDangerHover
+				: variant === "ghost" ? S.buttonGhostHover : S.buttonHover;
 		const off = disabled === true;
 		return h("button", {
 			type: "button",
@@ -619,6 +774,19 @@ var dsh_bundle_default_workspace_client = (function () {
 				children !== undefined
 					? children
 					: h("div", { style: muted ? S.valueMuted : S.value }, value))
+		);
+	}
+
+	/** 一行「左标签+说明、右操作」——危险操作区用它摆按钮。 */
+	function ActionRow({ label, hint, first, children }) {
+		return h("div", { style: first ? S.fieldGridFirst : S.fieldGrid },
+			h("div", null,
+				h("div", { style: S.fieldLabel }, label),
+				hint ? h("div", { style: S.fieldHint }, hint) : null
+			),
+			h("div", { style: S.fieldControl },
+				h("div", { style: { ...S.fieldActions, marginTop: 0 } }, children)
+			)
 		);
 	}
 
@@ -806,6 +974,209 @@ var dsh_bundle_default_workspace_client = (function () {
 		);
 	}
 
+	/**
+	 * 危险操作区：清空 / 重置。
+	 *
+	 * 两步式——先点按钮展开确认面板，再逐字打出目录名才放行。
+	 * 「确定 / 取消」两按钮弹窗挡不住手滑，输入框可以；而且它逼用户
+	 * 确认自己清的是哪一个目录（目录名和父目录都是可配置的）。
+	 * 真正动文件的在宿主侧，这里只负责收确认词、把结果说人话。
+	 */
+	function DangerZone({ data, readonly, tt, onDone }) {
+		const [pending, setPending] = useState(null);
+		const [typed, setTyped] = useState("");
+		const [busy, setBusy] = useState(null);
+		const [message, setMessage] = useState(null);
+		const [error, setError] = useState(null);
+
+		const cleanup = data && data.cleanup && typeof data.cleanup === "object" ? data.cleanup : null;
+		const token = cleanup !== null && typeof cleanup.confirmToken === "string" ? cleanup.confirmToken : "";
+		const survey = (cleanup === null ? {} : (pending === "reset" ? cleanup.reset : cleanup.clear)) || {};
+		const matched = token !== "" && typed.trim() === token;
+		const locked = readonly === true || busy !== null;
+
+		const open = useCallback((action) => {
+			setPending(action);
+			setTyped("");
+			setMessage(null);
+			setError(null);
+		}, []);
+		const close = useCallback(() => {
+			setPending(null);
+			setTyped("");
+		}, []);
+
+		const run = useCallback(async () => {
+			if (pending === null || locked || !matched) return;
+			const action = pending;
+			setBusy(action);
+			setError(null);
+			setMessage(null);
+			try {
+				const body = await postJsonOrThrow(action === "reset" ? RESET_PATH : CLEAR_PATH, {
+					confirm: typed.trim()
+				});
+				const parts = [];
+				const failed = Array.isArray(body.failed) ? body.failed : [];
+				// 用 empty（宿主明确说「没东西可清」）而不是 movedCount === 0 来判断空操作：
+				// 全都搬不动时 movedCount 也是 0，那时候说「没有可清理的内容」就是在撒谎。
+				if (body.empty === true) {
+					parts.push(tt("danger.nothingToDo"));
+				} else if (body.movedCount > 0) {
+					if (action === "reset") {
+						const seedState = body.seed && body.seed.written === true
+							? tt("danger.seedWritten")
+							: tt("danger.seedSkipped");
+						parts.push(tt("danger.resetDone")
+							.replace("{count}", String(body.movedCount))
+							.replace("{size}", sizeOf(body.bytes))
+							.replace("{seed}", seedState));
+					} else {
+						parts.push(tt("danger.clearDone")
+							.replace("{count}", String(body.movedCount))
+							.replace("{size}", sizeOf(body.bytes))
+							.replace("{trash}", typeof body.trashPath === "string" ? body.trashPath : ""));
+					}
+				}
+				if (Array.isArray(body.pruned) && body.pruned.length > 0) {
+					parts.push(tt("danger.pruned").replace("{count}", String(body.pruned.length)));
+				}
+				if (failed.length > 0) {
+					parts.push(tt("danger.failed").replace("{names}", failed.join(", ")));
+				}
+				if (action === "reset" && typeof body.workspaceError === "string" && body.workspaceError !== "") {
+					parts.push(tt("status.workspaceError").replace("{error}", body.workspaceError));
+				}
+				setMessage({
+					bad: failed.length > 0,
+					text: parts.length > 0 ? parts.join(" ") : tt("danger.nothingToDo")
+				});
+				close();
+				if (typeof onDone === "function") await onDone();
+			} catch (reason) {
+				setError(tt("danger.error").replace(
+					"{error}", reason instanceof Error ? reason.message : String(reason)));
+			} finally {
+				setBusy(null);
+			}
+		}, [pending, locked, matched, typed, tt, onDone, close]);
+
+		if (cleanup === null) {
+			return h("div", { style: { ...S.noticeWarn, margin: "4px 0 0" } }, tt("danger.unavailable"));
+		}
+
+		const count = typeof survey.count === "number" ? survey.count : 0;
+		const bytes = typeof survey.bytes === "number" ? survey.bytes : 0;
+		const names = (Array.isArray(survey.entries) ? survey.entries : [])
+			.map((entry) => (entry && typeof entry.name === "string" ? entry.name : ""))
+			.filter((entry) => entry !== "");
+		const shown = names.slice(0, 8);
+		const hidden = names.length - shown.length;
+		const trashCount = typeof cleanup.trashCount === "number" ? cleanup.trashCount : 0;
+		const latest = Array.isArray(cleanup.trashBatches) && cleanup.trashBatches.length > 0
+			? cleanup.trashBatches[0]
+			: null;
+		const label = (action) => tt(action === "reset" ? "danger.action.reset" : "danger.action.clear");
+		const title = (action) => tt("danger.confirmTitle")
+			.replace("{action}", label(action))
+			.replace("{dir}", token);
+		const contentValue = count === 0
+			? tt("danger.contentEmpty")
+			: (survey.truncated === true ? tt("danger.contentMore") : tt("danger.contentValue"))
+				.replace("{count}", String(count))
+				.replace("{size}", sizeOf(bytes));
+
+		return h("div", null,
+			h("div", { style: { ...S.noticeWarn, margin: "4px 0 14px" } }, tt("danger.intro")),
+
+			h(StatusRow, { first: true, label: tt("danger.content"), value: contentValue }),
+			h(StatusRow, {
+				label: tt("danger.trash"),
+				value: trashCount === 0
+					? tt("danger.trashEmpty")
+					: tt("danger.trashValue").replace("{count}", String(trashCount)) +
+						(latest === null ? "" : " · " + tt("danger.trashLatest").replace("{name}", latest))
+			}),
+			h(Field, {
+				name: "trashKeep",
+				label: tt("danger.trashKeep"),
+				hint: tt("danger.trashKeepHint"),
+				value: typeof cleanup.trashKeep === "number" ? cleanup.trashKeep : 5,
+				kind: "number",
+				disabled: locked,
+				emptyMeansDefault: true,
+				tt
+			}),
+
+			h(ActionRow, { label: tt("danger.clear"), hint: tt("danger.clearHint") },
+				h(Button, {
+					variant: "danger",
+					disabled: locked,
+					onClick: () => (pending === "clear" ? close() : open("clear")),
+					label: tt("danger.clear")
+				}, tt("danger.clear"))
+			),
+			h(ActionRow, { label: tt("danger.reset"), hint: tt("danger.resetHint") },
+				h(Button, {
+					variant: "danger",
+					disabled: locked,
+					onClick: () => (pending === "reset" ? close() : open("reset")),
+					label: tt("danger.reset")
+				}, tt("danger.reset"))
+			),
+
+			pending === null ? null : h("div", {
+				style: S.dangerBox,
+				role: "alertdialog",
+				"aria-label": title(pending)
+			},
+				h("div", { style: S.dangerTitle }, title(pending)),
+				count === 0
+					? h("div", { style: S.dangerNote }, tt("danger.confirmEmpty"))
+					: h("div", null,
+						h("div", { style: S.dangerNote }, tt("danger.confirmList")),
+						h("ul", { style: S.dangerList },
+							shown.map((entry) => h("li", { key: entry, style: S.dangerItem }, entry)),
+							hidden > 0
+								? h("li", { style: S.dangerItem },
+									tt("danger.confirmMore").replace("{count}", String(hidden)))
+								: null
+						)
+					),
+				pending === "reset" ? h("div", { style: S.dangerNote }, tt("danger.confirmResetNote")) : null,
+				h("div", { style: S.dangerNote }, tt("danger.confirmHint")),
+				h("div", { style: { ...S.fieldActions, marginTop: 0 } },
+					h("input", {
+						style: matched ? { ...S.dangerInput, ...S.dangerInputOk } : S.dangerInput,
+						type: "text",
+						value: typed,
+						placeholder: token,
+						disabled: busy !== null,
+						"aria-label": tt("danger.confirmHint") + " " + token,
+						onChange: (event) => setTyped(event.target.value)
+					}),
+					h(Button, {
+						variant: "danger",
+						disabled: locked || !matched,
+						onClick: () => run(),
+						label: tt("danger.confirm").replace("{action}", label(pending))
+					}, busy === pending
+						? tt("danger.busy")
+						: tt("danger.confirm").replace("{action}", label(pending))),
+					h(Button, {
+						variant: "ghost",
+						disabled: busy !== null,
+						onClick: close,
+						label: tt("danger.cancel")
+					}, tt("danger.cancel"))
+				)
+			),
+
+			error ? h("div", { style: { ...S.error, marginTop: 10 }, role: "alert" }, error) : null,
+			message ? h("div", { style: { ...(message.bad ? S.error : S.ok), marginTop: 10 } }, message.text) : null
+		);
+	}
+
 	/* ------------------------------------------------------------------ */
 	/* 面板主体                                                             */
 	/* ------------------------------------------------------------------ */
@@ -823,7 +1194,8 @@ var dsh_bundle_default_workspace_client = (function () {
 			status: true,
 			base: true,
 			create: true,
-			advanced: false
+			advanced: false,
+			danger: false
 		});
 		const [cadenceMs, setCadenceMs] = useState(30_000);
 		const [ensureBusy, setEnsureBusy] = useState(false);
@@ -1134,6 +1506,21 @@ var dsh_bundle_default_workspace_client = (function () {
 							disabled: ensureBusy,
 							tt
 						})
+					) : null,
+
+					// 破坏性操作单独一块，默认收起：平时看不见，要找的时候找得到。
+					data ? h(SectionCard, {
+						title: tt("section.danger"),
+						open: openSections.danger,
+						onToggle: () => toggleSection("danger"),
+						tt
+					},
+						h(DangerZone, {
+							data,
+							readonly,
+							tt,
+							onDone: load
+						})
 					) : null
 				)
 			)
@@ -1203,9 +1590,9 @@ var dsh_bundle_default_workspace_client = (function () {
 			panel: Object.freeze({
 				dictionaries: Object.freeze({ zh, en }),
 				styles: S,
-				paths: Object.freeze({ NS, STATE_PATH, SETTINGS_PATH, ENSURE_PATH }),
+				paths: Object.freeze({ NS, STATE_PATH, SETTINGS_PATH, ENSURE_PATH, CLEAR_PATH, RESET_PATH }),
 				helpers: Object.freeze({ clock, sizeOf }),
-				components: Object.freeze({ PanelPage, SectionCard, StatusRow, Field, BoolField })
+				components: Object.freeze({ PanelPage, SectionCard, StatusRow, ActionRow, Field, BoolField, DangerZone })
 			})
 		};
 	}
